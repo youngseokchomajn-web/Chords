@@ -2,112 +2,69 @@ import { audioContextManager } from './audioContext';
 import { STANDARD_TUNING_MIDI, midiToFrequency } from '../theory/notes';
 import { StrumOptions } from '../types/audio';
 
-function createNoiseBuffer(ctx: AudioContext, duration = 0.08) {
-  const buffer = ctx.createBuffer(1, Math.max(1, Math.floor(ctx.sampleRate * duration)), ctx.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < data.length; i += 1) data[i] = Math.random() * 2 - 1;
-  return buffer;
+const SAMPLE_PATH = '/samples/guitar';
+const SAMPLES = [
+  [40,'MartinGM2_040__E2_1.wav'],[43,'MartinGM2_043__G2_1.wav'],[46,'MartinGM2_046_Bb2_1.wav'],
+  [49,'MartinGM2_049_Db3_1.wav'],[52,'MartinGM2_052__E3_1.wav'],[55,'MartinGM2_055__G3_1.wav'],
+  [58,'MartinGM2_058_Bb3_1.wav'],[61,'MartinGM2_061_Db4_1.wav'],[64,'MartinGM2_064__E4_1.wav'],
+  [68,'MartinGM2_068_Ab4_1.wav']
+] as const;
+
+const cache = new Map<number, AudioBuffer>();
+const pending = new Map<number, Promise<AudioBuffer>>();
+
+function nearest(midi:number) {
+  return SAMPLES.reduce((a,b) => Math.abs(b[0]-midi) < Math.abs(a[0]-midi) ? b : a);
+}
+
+async function sampleFor(midi:number) {
+  const [sampleMidi,file] = nearest(midi);
+  const cached = cache.get(sampleMidi);
+  if (cached) return {buffer:cached,sampleMidi};
+  const existing = pending.get(sampleMidi);
+  if (existing) return {buffer:await existing,sampleMidi};
+
+  const ctx = audioContextManager.getContext();
+  const job = fetch(`${SAMPLE_PATH}/${file}`)
+    .then(r => { if (!r.ok) throw new Error('sample missing'); return r.arrayBuffer(); })
+    .then(b => ctx.decodeAudioData(b))
+    .then(b => { cache.set(sampleMidi,b); pending.delete(sampleMidi); return b; });
+  pending.set(sampleMidi,job);
+  return {buffer:await job,sampleMidi};
+}
+
+function fallback(stringIdx:number,fret:number,offset:number,velocity:number) {
+  const ctx=audioContextManager.getContext(), now=ctx.currentTime+offset;
+  const freq=midiToFrequency(STANDARD_TUNING_MIDI[stringIdx]+fret);
+  const gain=ctx.createGain(); gain.gain.setValueAtTime(.0001,now);
+  gain.gain.linearRampToValueAtTime(velocity*.55,now+.008);
+  gain.gain.exponentialRampToValueAtTime(.0001,now+1.35);
+  const osc=ctx.createOscillator(); osc.type='triangle'; osc.frequency.value=freq;
+  osc.connect(gain).connect(ctx.destination); osc.start(now); osc.stop(now+1.4);
 }
 
 export class GuitarSoundEngine {
-  public static playString(stringIdx: number, fret: number, startTimeOffset = 0, velocity = 0.8) {
-    if (fret < 0) return;
-
-    const ctx = audioContextManager.getContext();
-    const now = ctx.currentTime + startTimeOffset;
-    const midi = STANDARD_TUNING_MIDI[stringIdx] + fret;
-    const freq = midiToFrequency(midi);
-
-    const master = ctx.createGain();
-    master.gain.setValueAtTime(0.0001, now);
-    master.gain.linearRampToValueAtTime(velocity * 0.72, now + 0.008);
-    master.gain.exponentialRampToValueAtTime(0.0001, now + 1.65);
-
-    const body = ctx.createBiquadFilter();
-    body.type = 'lowpass';
-    body.frequency.setValueAtTime(Math.min(5200, freq * 8), now);
-    body.Q.setValueAtTime(0.55, now);
-
-    const fundamental = ctx.createOscillator();
-    fundamental.type = 'triangle';
-    fundamental.frequency.setValueAtTime(freq, now);
-
-    const harmonic = ctx.createOscillator();
-    harmonic.type = 'sine';
-    harmonic.frequency.setValueAtTime(freq * 2, now);
-    const harmonicGain = ctx.createGain();
-    harmonicGain.gain.setValueAtTime(0.16, now);
-
-    const pluck = ctx.createOscillator();
-    pluck.type = 'sine';
-    pluck.frequency.setValueAtTime(freq * 3, now);
-    const pluckGain = ctx.createGain();
-    pluckGain.gain.setValueAtTime(0.06, now);
-    pluckGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
-
-    const noise = ctx.createBufferSource();
-    noise.buffer = createNoiseBuffer(ctx);
-    const noiseFilter = ctx.createBiquadFilter();
-    noiseFilter.type = 'bandpass';
-    noiseFilter.frequency.setValueAtTime(Math.min(4500, Math.max(1200, freq * 5)), now);
-    noiseFilter.Q.setValueAtTime(0.7, now);
-    const noiseGain = ctx.createGain();
-    noiseGain.gain.setValueAtTime(velocity * 0.055, now);
-    noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.045);
-
-    fundamental.connect(body);
-    harmonic.connect(harmonicGain).connect(body);
-    pluck.connect(pluckGain).connect(body);
-    body.connect(master);
-    noise.connect(noiseFilter).connect(noiseGain).connect(master);
-    master.connect(ctx.destination);
-
-    fundamental.start(now);
-    harmonic.start(now);
-    pluck.start(now);
-    noise.start(now);
-
-    fundamental.stop(now + 1.7);
-    harmonic.stop(now + 1.7);
-    pluck.stop(now + 0.14);
-    noise.stop(now + 0.09);
+  public static async playString(stringIdx:number,fret:number,offset=0,velocity=.8) {
+    if(fret<0)return;
+    const target=STANDARD_TUNING_MIDI[stringIdx]+fret;
+    try {
+      const {buffer,sampleMidi}=await sampleFor(target);
+      const ctx=audioContextManager.getContext(), now=ctx.currentTime+offset;
+      const source=ctx.createBufferSource(); source.buffer=buffer;
+      source.playbackRate.value=Math.pow(2,(target-sampleMidi)/12);
+      const gain=ctx.createGain(); gain.gain.setValueAtTime(.0001,now);
+      gain.gain.linearRampToValueAtTime(velocity*.82,now+.004);
+      gain.gain.exponentialRampToValueAtTime(.0001,now+Math.min(2.8,Math.max(.75,buffer.duration)));
+      source.connect(gain).connect(ctx.destination); source.start(now);
+    } catch { fallback(stringIdx,fret,offset,velocity); }
   }
 
-  public static strum(
-    frets: [number, number, number, number, number, number],
-    options: StrumOptions = {}
-  ) {
-    const speed = options.speedSec ?? 0.025;
-    const dir = options.direction ?? 'down';
-    const vel = options.velocity ?? 0.8;
-    const indices = dir === 'down' ? [0, 1, 2, 3, 4, 5] : [5, 4, 3, 2, 1, 0];
-
-    indices.forEach((idx, position) => {
-      const stringNum = 6 - idx;
-      const fret = frets[idx];
-      if (fret >= 0) {
-        const microVariation = ((position % 3) - 1) * 0.002;
-        this.playString(stringNum, fret, Math.max(0, position * speed + microVariation), vel * (0.94 + (position % 2) * 0.03));
-      }
+  public static strum(frets:[number,number,number,number,number,number],options:StrumOptions={}) {
+    const speed=options.speedSec??.025, dir=options.direction??'down', vel=options.velocity??.8;
+    const indices=dir==='down'?[0,1,2,3,4,5]:[5,4,3,2,1,0];
+    indices.forEach((idx,pos)=>{
+      const fret=frets[idx]; if(fret<0)return;
+      void this.playString(6-idx,fret,Math.max(0,pos*speed+((pos%3)-1)*.002),vel*(.94+(pos%2)*.03));
     });
-  }
-
-  public static strumPattern(
-    frets: [number, number, number, number, number, number],
-    pattern: Array<'down' | 'up' | 'rest'>,
-    stepSec: number,
-    velocity = 0.75
-  ) {
-    pattern.forEach((stroke, index) => {
-      if (stroke === 'rest') return;
-      this.strum(frets, {
-        direction: stroke,
-        speedSec: 0.018,
-        velocity: velocity * (stroke === 'up' ? 0.88 : 1)
-      });
-    });
-    void stepSec;
   }
 }
-
-const TEST_SAMPLE_LOADER = typeof fetch === 'function';
