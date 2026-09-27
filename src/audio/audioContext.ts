@@ -4,7 +4,6 @@ class SoundContextManager {
 
   public getContext(): AudioContext {
     if (!this.ctx) {
-      this.configureAudioSession();
       const AudioCtx =
         window.AudioContext ||
         (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
@@ -13,18 +12,7 @@ class SoundContextManager {
     return this.ctx;
   }
 
-  /**
-   * Guaranteed unlock: awaits ctx.resume() inside the user gesture.
-   */
   public async unlock(): Promise<boolean> {
-    return this.ensureRunning();
-  }
-
-  /**
-   * iOS Safari can suspend/interupt Web Audio after the page loses focus.
-   * Always verify the context is running immediately before scheduling audio.
-   */
-  public async ensureRunning(): Promise<boolean> {
     const ctx = this.getContext();
 
     if (ctx.state === 'suspended' || (ctx.state as string) === 'interrupted') {
@@ -39,33 +27,11 @@ class SoundContextManager {
     return this.isUnlocked;
   }
 
-  /**
-   * Use iOS's transient audio-session mode when the browser exposes it.
-   * This is intentionally feature-detected because the API is not in all browsers.
-   */
-  private configureAudioSession(): void {
-    const audioSession = (navigator as Navigator & {
-      audioSession?: { type?: string };
-    }).audioSession;
-
-    if (audioSession && audioSession.type !== 'transient') {
-      try {
-        audioSession.type = 'transient';
-      } catch {
-        // Browser does not allow changing the audio session type.
-      }
-    }
-  }
-
-  /**
-   * Direct HTMLAudioElement test for iOS Safari isolation.
-   */
   public async playHtmlAudioTest(): Promise<'played' | 'failed'> {
     const audio = new Audio();
     audio.preload = 'auto';
     audio.volume = 0.5;
 
-    // Self-contained 440Hz WAV PCM16 mono.
     const sampleRate = 8000;
     const duration = 0.3;
     const samples = Math.floor(sampleRate * duration);
@@ -89,7 +55,11 @@ class SoundContextManager {
     view.setUint32(40, samples * 2, true);
     for (let i = 0; i < samples; i++) {
       const envelope = Math.min(1, i / 80) * Math.max(0, 1 - i / samples);
-      view.setInt16(44 + i * 2, Math.sin(2 * Math.PI * 440 * i / sampleRate) * 0.4 * envelope * 32767, true);
+      view.setInt16(
+        44 + i * 2,
+        Math.sin(2 * Math.PI * 440 * i / sampleRate) * 0.4 * envelope * 32767,
+        true,
+      );
     }
 
     const bytes = new Uint8Array(buffer);
@@ -105,9 +75,6 @@ class SoundContextManager {
     }
   }
 
-  /**
-   * Diagnostic beep: plays a clear 523Hz (C5) tone
-   */
   public async playTestBeep(): Promise<void> {
     await this.unlock();
     const ctx = this.getContext();
@@ -142,11 +109,3 @@ class SoundContextManager {
 }
 
 export const audioContextManager = new SoundContextManager();
-
-if (typeof window !== 'undefined') {
-  const recoverAudio = () => {
-    void audioContextManager.ensureRunning();
-  };
-  document.addEventListener('visibilitychange', recoverAudio);
-  window.addEventListener('pageshow', recoverAudio);
-}
