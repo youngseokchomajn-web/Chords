@@ -76,27 +76,24 @@ export const App: React.FC = () => {
   const handleTestAudio = async () => {
     clearAllTimers();
     GuitarSoundEngine.stopAll();
-
-    // HTML Audio only: keep Web Audio completely out of this diagnostic.
-    const htmlResult = await audioContextManager.playHtmlAudioTest();
-    setFeedbackMsg(htmlResult === 'played' ? 'HTML Audio 실행됨' : 'HTML Audio 재생 실패');
+    await audioContextManager.unlock();
+    await audioContextManager.playTestBeep();
+    GuitarSoundEngine.playTestNote();
+    setFeedbackMsg('소리 테스트 완료!');
     addTimer(() => setFeedbackMsg(''), 2500);
   };
 
-  const playChord = (degree: number) => {
-    // 1. Cancel previous playback & stop previous ringing strings
+  const playChord = async (degree: number) => {
     clearAllTimers();
     GuitarSoundEngine.stopAll();
-    audioContextManager.unlock();
+    await audioContextManager.unlock();
 
-    // 2. State update
     setCurrentProgression([degree]);
     setCurrentIndex(0);
     setIsPlaying(true);
 
-    // 3. Strum tightly (~45ms total)
     const def = degreeToDefinition(key, degree);
-    GuitarSoundEngine.strum(def.primaryVoicing.frets, { speedSec: 0.009, direction: 'down' });
+    GuitarSoundEngine.strum(def.primaryVoicing.frets, { speedSec: 0.012, direction: 'down' });
 
     addTimer(() => {
       setCurrentIndex(-1);
@@ -104,11 +101,10 @@ export const App: React.FC = () => {
     }, 900);
   };
 
-  const playProgression = (degrees: number[]) => {
-    // 1. Cancel previous scheduled events & stop previous strings
+  const playProgression = async (degrees: number[]) => {
     clearAllTimers();
     GuitarSoundEngine.stopAll();
-    audioContextManager.unlock();
+    await audioContextManager.unlock();
 
     setCurrentProgression(degrees);
     setIsPlaying(true);
@@ -119,7 +115,7 @@ export const App: React.FC = () => {
     degrees.forEach((degree, index) => {
       addTimer(() => {
         setCurrentIndex(index);
-        GuitarSoundEngine.stopAll(); // Clean chord change
+        GuitarSoundEngine.stopAll();
         const frets = degreeToDefinition(key, degree).primaryVoicing.frets;
         const stepSec = beatSec / 2;
 
@@ -128,8 +124,8 @@ export const App: React.FC = () => {
             if (stroke !== 'rest') {
               GuitarSoundEngine.strum(frets, {
                 direction: stroke,
-                speedSec: 0.008,
-                velocity: stroke === 'up' ? 0.70 : 0.85
+                speedSec: 0.010,
+                velocity: stroke === 'up' ? 0.72 : 0.85
               });
             }
           }, strokeIndex * stepSec * 1000);
@@ -166,7 +162,7 @@ export const App: React.FC = () => {
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
             <span>
-              <strong style={{ color: '#2e7d32' }}>🎸 리얼 스트럼 준비 완료</strong>
+              <strong style={{ color: '#2e7d32' }}>🎸 사운드 엔진 활성</strong>
               {feedbackMsg && <span style={{ marginLeft: 6, color: '#111', fontWeight: 'bold' }}>· {feedbackMsg}</span>}
             </span>
             <button

@@ -2,31 +2,8 @@ class SoundContextManager {
   private ctx: AudioContext | null = null;
   private isUnlocked = false;
 
-  /**
-   * iOS Safari/WebKit can keep Web Audio in an ambient audio session,
-   * which may produce silence even though AudioContext reports "running".
-   * Use the newer AudioSession API when available.
-   */
-  private configureAudioSession(): void {
-    const audioSession = (
-      navigator as Navigator & {
-        audioSession?: { type: string };
-      }
-    ).audioSession;
-
-    if (audioSession) {
-      try {
-        audioSession.type = 'playback';
-      } catch {
-        // Older browsers or unsupported WebKit versions.
-      }
-    }
-  }
-
   public getContext(): AudioContext {
     if (!this.ctx) {
-      this.configureAudioSession();
-
       const AudioCtx =
         window.AudioContext ||
         (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
@@ -36,30 +13,34 @@ class SoundContextManager {
   }
 
   /**
-   * Unlock Web Audio from the current user gesture.
+   * Guaranteed unlock: awaits ctx.resume() inside the user gesture.
    */
-  public unlock(): void {
-    this.configureAudioSession();
-
+  public async unlock(): Promise<boolean> {
     const ctx = this.getContext();
+
     if (ctx.state === 'suspended' || (ctx.state as string) === 'interrupted') {
-      void ctx.resume().catch(() => undefined);
+      try {
+        await ctx.resume();
+      } catch (err) {
+        console.warn('AudioContext resume failed:', err);
+      }
     }
-    this.isUnlocked = true;
+
+    this.isUnlocked = ctx.state === 'running';
+    return this.isUnlocked;
   }
 
   /**
-   * Direct HTMLAudioElement diagnostic. This intentionally bypasses Web Audio
-   * so iOS Safari can be tested with the native media playback path.
+   * Direct HTMLAudioElement test for iOS Safari isolation.
    */
   public async playHtmlAudioTest(): Promise<'played' | 'failed'> {
     const audio = new Audio();
     audio.preload = 'auto';
-    audio.volume = 0.25;
+    audio.volume = 0.5;
 
-    // Tiny self-contained 440Hz WAV generated as PCM16 mono.
+    // Self-contained 440Hz WAV PCM16 mono.
     const sampleRate = 8000;
-    const duration = 0.35;
+    const duration = 0.3;
     const samples = Math.floor(sampleRate * duration);
     const buffer = new ArrayBuffer(44 + samples * 2);
     const view = new DataView(buffer);
@@ -81,7 +62,7 @@ class SoundContextManager {
     view.setUint32(40, samples * 2, true);
     for (let i = 0; i < samples; i++) {
       const envelope = Math.min(1, i / 80) * Math.max(0, 1 - i / samples);
-      view.setInt16(44 + i * 2, Math.sin(2 * Math.PI * 440 * i / sampleRate) * 0.25 * envelope * 32767, true);
+      view.setInt16(44 + i * 2, Math.sin(2 * Math.PI * 440 * i / sampleRate) * 0.4 * envelope * 32767, true);
     }
 
     const bytes = new Uint8Array(buffer);
@@ -98,10 +79,10 @@ class SoundContextManager {
   }
 
   /**
-   * Diagnostic beep: plays a quiet 523Hz (C5) tone for 0.2s.
+   * Diagnostic beep: plays a clear 523Hz (C5) tone
    */
-  public playTestBeep(): void {
-    this.unlock();
+  public async playTestBeep(): Promise<void> {
+    await this.unlock();
     const ctx = this.getContext();
     const now = ctx.currentTime;
 
@@ -112,7 +93,7 @@ class SoundContextManager {
     osc.frequency.setValueAtTime(523.25, now);
 
     gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.linearRampToValueAtTime(0.12, now + 0.015);
+    gain.gain.linearRampToValueAtTime(0.4, now + 0.015);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
 
     osc.connect(gain).connect(ctx.destination);

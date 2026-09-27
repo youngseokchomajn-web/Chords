@@ -13,22 +13,20 @@ export class GuitarSoundEngine {
   private static masterGain: GainNode | null = null;
 
   /**
-   * Safe master audio bus with brickwall limiter to guarantee zero harsh clipping or runaway noise.
+   * Safe master audio bus with limiter ensuring clear, loud listening level without clipping.
    */
   private static getMasterOutput(): GainNode {
     const ctx = audioContextManager.getContext();
     if (!this.masterLimiter || !this.masterGain) {
-      // 1. Limiter: protects ears and speakers from any loud transients or overlap
       const limiter = ctx.createDynamicsCompressor();
-      limiter.threshold.setValueAtTime(-14, ctx.currentTime);
-      limiter.knee.setValueAtTime(10, ctx.currentTime);
-      limiter.ratio.setValueAtTime(16, ctx.currentTime);
+      limiter.threshold.setValueAtTime(-6, ctx.currentTime);
+      limiter.knee.setValueAtTime(6, ctx.currentTime);
+      limiter.ratio.setValueAtTime(12, ctx.currentTime);
       limiter.attack.setValueAtTime(0.002, ctx.currentTime);
-      limiter.release.setValueAtTime(0.08, ctx.currentTime);
+      limiter.release.setValueAtTime(0.05, ctx.currentTime);
 
-      // 2. Master Gain: comfortable acoustic listening volume
       const master = ctx.createGain();
-      master.gain.setValueAtTime(0.55, ctx.currentTime);
+      master.gain.setValueAtTime(0.85, ctx.currentTime);
 
       limiter.connect(master);
       master.connect(ctx.destination);
@@ -62,8 +60,8 @@ export class GuitarSoundEngine {
   }
 
   /**
-   * Play an acoustic guitar string using a safe, warm subtractive synthesis engine.
-   * 100% feed-forward (NO dangerous feedback loops, NO screeching or runaway howling).
+   * Play an acoustic guitar string using a safe, rich subtractive synthesis engine.
+   * Clearly audible on phone speakers, 100% feed-forward (zero screeching or runaway).
    */
   public static playString(
     stringIdx: number,
@@ -73,7 +71,6 @@ export class GuitarSoundEngine {
   ): void {
     if (fret < 0) return;
 
-    audioContextManager.unlock();
     const ctx = audioContextManager.getContext();
     this.getMasterOutput(); // Ensure master chain is ready
 
@@ -90,35 +87,35 @@ export class GuitarSoundEngine {
       osc1.type = 'triangle';
       osc1.frequency.setValueAtTime(freq, now);
 
-      // 2. Steel string brightness harmonic oscillator (gentle sawtooth, 15% mix)
+      // 2. Steel string brightness harmonic oscillator (gentle sawtooth, 18% mix)
       const osc2 = ctx.createOscillator();
       osc2.type = 'sawtooth';
       osc2.frequency.setValueAtTime(freq, now);
 
       const osc2Gain = ctx.createGain();
-      osc2Gain.gain.setValueAtTime(0.15, now);
+      osc2Gain.gain.setValueAtTime(0.18, now);
       osc2.connect(osc2Gain);
 
       // 3. Acoustic guitar lowpass filter (bright pluck attack that decays quickly)
       const filter = ctx.createBiquadFilter();
       filter.type = 'lowpass';
-      const openCutoff = Math.min(6500, freq * 5.5);
-      const warmCutoff = Math.min(1100, freq * 1.6);
+      const openCutoff = Math.min(7500, freq * 6);
+      const warmCutoff = Math.min(1400, freq * 1.8);
       filter.frequency.setValueAtTime(openCutoff, now);
-      filter.frequency.exponentialRampToValueAtTime(warmCutoff, now + 0.35);
+      filter.frequency.exponentialRampToValueAtTime(warmCutoff, now + 0.3);
 
       // 4. String envelope (fast attack, natural exponential decay)
       const stringGain = ctx.createGain();
-      // Controlled safe string volume to avoid summing distortion
-      const stringVol = velocity * (stringIdx >= 5 ? 0.16 : 0.12);
+      // Audible, clear string volume for mobile speakers
+      const stringVol = velocity * (stringIdx >= 5 ? 0.32 : 0.26);
       stringGain.gain.setValueAtTime(0.0001, now);
-      stringGain.gain.linearRampToValueAtTime(stringVol, now + 0.004);
+      stringGain.gain.linearRampToValueAtTime(stringVol, now + 0.005);
 
       const decayDuration = Math.min(2.5, Math.max(1.0, 2.6 - (midi - 40) * 0.03));
       const stopAtTime = now + decayDuration;
       stringGain.gain.exponentialRampToValueAtTime(0.0001, stopAtTime);
 
-      // Safe feed-forward audio routing:
+      // Feed-forward audio routing:
       // osc1 -> filter
       // osc2 -> osc2Gain -> filter
       // filter -> stringGain -> masterLimiter
@@ -137,19 +134,19 @@ export class GuitarSoundEngine {
         stopAtTime
       });
     } catch {
-      // Ignore audio scheduling errors
+      // Audio scheduling safeguard
     }
   }
 
   /**
-   * Strum a chord with tight, natural acoustic guitar strum timing (~45ms total).
+   * Strum a chord with tight, natural acoustic guitar strum timing (~60ms total).
    */
   public static strum(
     frets: [number, number, number, number, number, number],
     options: StrumOptions = {},
   ): void {
-    // 9ms between strings gives a natural, tight "촤르륵" acoustic guitar strum
-    const speed = options.speedSec ?? 0.009;
+    // 12ms between strings gives a natural, tight "촤르륵" acoustic guitar strum
+    const speed = options.speedSec ?? 0.012;
     const direction = options.direction ?? 'down';
     const velocity = options.velocity ?? 0.85;
 
@@ -172,6 +169,6 @@ export class GuitarSoundEngine {
 
   public static playTestNote(): void {
     this.stopAll();
-    this.playString(6, 0, 0, 0.85);
+    this.playString(5, 3, 0, 0.9); // C3 string test
   }
 }
