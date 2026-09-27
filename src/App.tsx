@@ -77,10 +77,9 @@ export const App: React.FC = () => {
     clearAllTimers();
     GuitarSoundEngine.stopAll();
 
-    // Run both paths from the same user gesture so we can isolate iOS audio routing.
-    audioContextManager.playTestBeep();
+    // HTML Audio only: keep Web Audio completely out of this diagnostic.
     const htmlResult = await audioContextManager.playHtmlAudioTest();
-    setFeedbackMsg(htmlResult === 'played' ? 'Web Audio + HTML Audio 실행됨' : 'HTML Audio 재생 실패');
+    setFeedbackMsg(htmlResult === 'played' ? 'HTML Audio 실행됨' : 'HTML Audio 재생 실패');
     addTimer(() => setFeedbackMsg(''), 2500);
   };
 
