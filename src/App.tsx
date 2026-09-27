@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { NoteName } from './types/music';
 import { getChordDefinition } from './theory/chordBuilder';
-import { GuitarSoundEngine } from './audio/guitarSynth';
+import { GuitarSoundEngine, subscribeLoadingProgress, SAMPLES } from './audio/guitarSynth';
 import { audioContextManager } from './audio/audioContext';
 
 const KEYS: NoteName[] = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
@@ -46,6 +46,10 @@ export const App: React.FC = () => {
   const [rhythmIndex, setRhythmIndex] = useState(1);
   const [bpm, setBpm] = useState(90);
   const [feedbackMsg, setFeedbackMsg] = useState<string>('');
+  const [sampleStats, setSampleStats] = useState<{ loaded: number; total: number }>({
+    loaded: 0,
+    total: SAMPLES.length,
+  });
 
   const timersRef = useRef<number[]>([]);
 
@@ -64,7 +68,11 @@ export const App: React.FC = () => {
   };
 
   useEffect(() => {
+    const unsubscribe = subscribeLoadingProgress((loaded, total) => {
+      setSampleStats({ loaded, total });
+    });
     return () => {
+      unsubscribe();
       clearAllTimers();
       GuitarSoundEngine.stopAll();
     };
@@ -162,7 +170,13 @@ export const App: React.FC = () => {
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
             <span>
-              <strong style={{ color: '#2e7d32' }}>🎸 고출력 사운드 엔진 활성</strong>
+              {sampleStats.loaded >= sampleStats.total ? (
+                <strong style={{ color: '#2e7d32' }}>🎸 마틴 어쿠스틱 사운드 준비 완료</strong>
+              ) : sampleStats.loaded >= 3 ? (
+                <strong style={{ color: '#0277bd' }}>🎸 마틴 어쿠스틱 준비됨 ({sampleStats.loaded}/{sampleStats.total})</strong>
+              ) : (
+                <span style={{ color: '#e65100' }}>⏳ 어쿠스틱 샘플 준비 중 ({sampleStats.loaded}/{sampleStats.total})</span>
+              )}
               {feedbackMsg && <span style={{ marginLeft: 6, color: '#111', fontWeight: 'bold' }}>· {feedbackMsg}</span>}
             </span>
             <button
