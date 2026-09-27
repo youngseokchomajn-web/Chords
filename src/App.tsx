@@ -111,6 +111,7 @@ export const App: React.FC = () => {
     clearAllTimers();
     GuitarSoundEngine.stopAll();
     await audioContextManager.unlock();
+    await GuitarSoundEngine.warmup();
 
     setCurrentProgression([degree]);
     setCurrentIndex(0);
@@ -129,6 +130,7 @@ export const App: React.FC = () => {
     clearAllTimers();
     GuitarSoundEngine.stopAll();
     await audioContextManager.unlock();
+    await GuitarSoundEngine.warmup();
 
     setCurrentProgression(degrees);
     setIsPlaying(true);
