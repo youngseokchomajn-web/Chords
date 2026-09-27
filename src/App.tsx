@@ -118,7 +118,7 @@ export const App: React.FC = () => {
     setIsPlaying(true);
 
     const def = degreeToDefinition(key, degree);
-    GuitarSoundEngine.strum(def.primaryVoicing.frets, { speedSec: 0.007, direction: 'down' });
+    GuitarSoundEngine.strum(def.primaryVoicing.frets, { speedSec: 0.012, direction: 'down' });
 
     addTimer(() => {
       setCurrentIndex(-1);
@@ -150,7 +150,7 @@ export const App: React.FC = () => {
             if (stroke !== 'rest') {
               GuitarSoundEngine.strum(frets, {
                 direction: stroke,
-                speedSec: 0.006,
+                speedSec: 0.012,
                 velocity: stroke === 'up' ? 0.78 : 0.92
               });
             }
