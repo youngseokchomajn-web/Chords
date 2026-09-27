@@ -1,7 +1,7 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { NoteName } from './types/music';
 import { getChordDefinition } from './theory/chordBuilder';
-import { GuitarSoundEngine, subscribeLoadingProgress, preloadSamples } from './audio/guitarSynth';
+import { GuitarSoundEngine } from './audio/guitarSynth';
 import { audioContextManager } from './audio/audioContext';
 
 const KEYS: NoteName[] = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
@@ -45,76 +45,51 @@ export const App: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [rhythmIndex, setRhythmIndex] = useState(1);
   const [bpm, setBpm] = useState(90);
-  const [sampleProgress, setSampleProgress] = useState<{ loaded: number; total: number }>({ loaded: 0, total: 10 });
-  const [audioStateNotice, setAudioStateNotice] = useState<string>('');
-
-  useEffect(() => {
-    const unsubscribe = subscribeLoadingProgress((loaded, total) => {
-      setSampleProgress({ loaded, total });
-    });
-    void preloadSamples();
-    return () => {
-      unsubscribe();
-    };
-  }, []);
+  const [feedbackMsg, setFeedbackMsg] = useState<string>('');
 
   const diatonicChords = useMemo(() => Array.from({ length: 7 }, (_, i) => degreeToChord(key, i + 1)), [key]);
   const rhythm = RHYTHMS[rhythmIndex];
 
-  const handleTestAudio = async () => {
-    try {
-      setAudioStateNotice('소리 테스트 중...');
-      await audioContextManager.playTestBeep();
-      await GuitarSoundEngine.playTestNote();
-      setAudioStateNotice(`정상 출력 (샘플 ${GuitarSoundEngine.loadedSampleCount}/10 준비됨)`);
-    } catch (err) {
-      setAudioStateNotice(`오류: ${String(err)}`);
-    }
+  const handleTestAudio = () => {
+    audioContextManager.playTestBeep();
+    GuitarSoundEngine.playTestNote();
+    setFeedbackMsg('소리 테스트 완료!');
+    window.setTimeout(() => setFeedbackMsg(''), 1500);
   };
 
-  const playChord = async (degree: number) => {
-    try {
-      await audioContextManager.unlock();
-      setCurrentProgression([degree]);
-      setCurrentIndex(0);
-      setIsPlaying(true);
-      GuitarSoundEngine.strum(degreeToDefinition(key, degree).primaryVoicing.frets);
-      window.setTimeout(() => { setCurrentIndex(-1); setIsPlaying(false); }, 900);
-    } catch (err) {
-      setAudioStateNotice(`재생 오류: ${String(err)}`);
-    }
+  const playChord = (degree: number) => {
+    audioContextManager.unlock();
+    setCurrentProgression([degree]);
+    setCurrentIndex(0);
+    setIsPlaying(true);
+    GuitarSoundEngine.strum(degreeToDefinition(key, degree).primaryVoicing.frets);
+    window.setTimeout(() => { setCurrentIndex(-1); setIsPlaying(false); }, 900);
   };
 
-  const playProgression = async (degrees: number[]) => {
-    try {
-      await audioContextManager.unlock();
-      setCurrentProgression(degrees);
-      setIsPlaying(true);
-      const beatSec = 60 / bpm;
-      const chordStepMs = beatSec * 4 * 1000;
-      degrees.forEach((degree, index) => {
-        window.setTimeout(() => {
-          setCurrentIndex(index);
-          const frets = degreeToDefinition(key, degree).primaryVoicing.frets;
-          const stepSec = beatSec / 2;
-          rhythm.pattern.forEach((stroke, strokeIndex) => {
-            window.setTimeout(() => {
-              if (stroke !== 'rest') {
-                GuitarSoundEngine.strum(frets, { direction: stroke, speedSec: 0.022, velocity: stroke === 'up' ? 0.66 : 0.78 });
-              }
-            }, strokeIndex * stepSec * 1000);
-          });
-        }, index * chordStepMs);
-      });
-      window.setTimeout(() => { setCurrentIndex(-1); setIsPlaying(false); }, degrees.length * chordStepMs);
-    } catch (err) {
-      setAudioStateNotice(`진행 재생 오류: ${String(err)}`);
-    }
+  const playProgression = (degrees: number[]) => {
+    audioContextManager.unlock();
+    setCurrentProgression(degrees);
+    setIsPlaying(true);
+    const beatSec = 60 / bpm;
+    const chordStepMs = beatSec * 4 * 1000;
+    degrees.forEach((degree, index) => {
+      window.setTimeout(() => {
+        setCurrentIndex(index);
+        const frets = degreeToDefinition(key, degree).primaryVoicing.frets;
+        const stepSec = beatSec / 2;
+        rhythm.pattern.forEach((stroke, strokeIndex) => {
+          window.setTimeout(() => {
+            if (stroke !== 'rest') {
+              GuitarSoundEngine.strum(frets, { direction: stroke, speedSec: 0.022, velocity: stroke === 'up' ? 0.66 : 0.78 });
+            }
+          }, strokeIndex * stepSec * 1000);
+        });
+      }, index * chordStepMs);
+    });
+    window.setTimeout(() => { setCurrentIndex(-1); setIsPlaying(false); }, degrees.length * chordStepMs);
   };
 
   const currentLabels = currentProgression.map(degree => degreeToChord(key, degree));
-  const isFullyLoaded = sampleProgress.loaded >= sampleProgress.total;
-  const isAnchorReady = sampleProgress.loaded >= 3;
 
   return (
     <div className="app">
@@ -137,14 +112,8 @@ export const App: React.FC = () => {
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
             <span>
-              {isFullyLoaded ? (
-                <strong style={{ color: '#2e7d32' }}>🎸 사운드 준비 완료</strong>
-              ) : isAnchorReady ? (
-                <strong style={{ color: '#0277bd' }}>🎸 고속 사운드 준비됨 ({sampleProgress.loaded}/10)</strong>
-              ) : (
-                <span style={{ color: '#e65100' }}>사운드 로딩 중... ({sampleProgress.loaded}/{sampleProgress.total})</span>
-              )}
-              {audioStateNotice && <span style={{ marginLeft: 6, color: '#333' }}>· {audioStateNotice}</span>}
+              <strong style={{ color: '#2e7d32' }}>⚡ 즉시 재생 준비 완료</strong>
+              {feedbackMsg && <span style={{ marginLeft: 6, color: '#111', fontWeight: 'bold' }}>· {feedbackMsg}</span>}
             </span>
             <button
               onClick={handleTestAudio}
