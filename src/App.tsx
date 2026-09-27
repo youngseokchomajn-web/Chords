@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { NoteName } from './types/music';
 import { getChordDefinition } from './theory/chordBuilder';
 import { GuitarSoundEngine } from './audio/guitarSynth';
@@ -47,46 +47,99 @@ export const App: React.FC = () => {
   const [bpm, setBpm] = useState(90);
   const [feedbackMsg, setFeedbackMsg] = useState<string>('');
 
+  const timersRef = useRef<number[]>([]);
+
+  const clearAllTimers = () => {
+    timersRef.current.forEach(id => window.clearTimeout(id));
+    timersRef.current = [];
+  };
+
+  const addTimer = (callback: () => void, delayMs: number) => {
+    const id = window.setTimeout(() => {
+      timersRef.current = timersRef.current.filter(t => t !== id);
+      callback();
+    }, delayMs);
+    timersRef.current.push(id);
+    return id;
+  };
+
+  useEffect(() => {
+    return () => {
+      clearAllTimers();
+      GuitarSoundEngine.stopAll();
+    };
+  }, []);
+
   const diatonicChords = useMemo(() => Array.from({ length: 7 }, (_, i) => degreeToChord(key, i + 1)), [key]);
   const rhythm = RHYTHMS[rhythmIndex];
 
   const handleTestAudio = () => {
+    clearAllTimers();
+    GuitarSoundEngine.stopAll();
     audioContextManager.playTestBeep();
     GuitarSoundEngine.playTestNote();
     setFeedbackMsg('소리 테스트 완료!');
-    window.setTimeout(() => setFeedbackMsg(''), 1500);
+    addTimer(() => setFeedbackMsg(''), 1500);
   };
 
   const playChord = (degree: number) => {
+    // 1. Cancel previous playback & stop previous ringing strings
+    clearAllTimers();
+    GuitarSoundEngine.stopAll();
     audioContextManager.unlock();
+
+    // 2. State update
     setCurrentProgression([degree]);
     setCurrentIndex(0);
     setIsPlaying(true);
-    GuitarSoundEngine.strum(degreeToDefinition(key, degree).primaryVoicing.frets);
-    window.setTimeout(() => { setCurrentIndex(-1); setIsPlaying(false); }, 900);
+
+    // 3. Strum tightly (~45ms total)
+    const def = degreeToDefinition(key, degree);
+    GuitarSoundEngine.strum(def.primaryVoicing.frets, { speedSec: 0.009, direction: 'down' });
+
+    addTimer(() => {
+      setCurrentIndex(-1);
+      setIsPlaying(false);
+    }, 900);
   };
 
   const playProgression = (degrees: number[]) => {
+    // 1. Cancel previous scheduled events & stop previous strings
+    clearAllTimers();
+    GuitarSoundEngine.stopAll();
     audioContextManager.unlock();
+
     setCurrentProgression(degrees);
     setIsPlaying(true);
+
     const beatSec = 60 / bpm;
     const chordStepMs = beatSec * 4 * 1000;
+
     degrees.forEach((degree, index) => {
-      window.setTimeout(() => {
+      addTimer(() => {
         setCurrentIndex(index);
+        GuitarSoundEngine.stopAll(); // Clean chord change
         const frets = degreeToDefinition(key, degree).primaryVoicing.frets;
         const stepSec = beatSec / 2;
+
         rhythm.pattern.forEach((stroke, strokeIndex) => {
-          window.setTimeout(() => {
+          addTimer(() => {
             if (stroke !== 'rest') {
-              GuitarSoundEngine.strum(frets, { direction: stroke, speedSec: 0.022, velocity: stroke === 'up' ? 0.66 : 0.78 });
+              GuitarSoundEngine.strum(frets, {
+                direction: stroke,
+                speedSec: 0.008,
+                velocity: stroke === 'up' ? 0.70 : 0.85
+              });
             }
           }, strokeIndex * stepSec * 1000);
         });
       }, index * chordStepMs);
     });
-    window.setTimeout(() => { setCurrentIndex(-1); setIsPlaying(false); }, degrees.length * chordStepMs);
+
+    addTimer(() => {
+      setCurrentIndex(-1);
+      setIsPlaying(false);
+    }, degrees.length * chordStepMs);
   };
 
   const currentLabels = currentProgression.map(degree => degreeToChord(key, degree));
@@ -99,7 +152,7 @@ export const App: React.FC = () => {
           <p>코드 진행을 바로 기타로 들어보기</p>
         </header>
 
-        {/* Audio Status & Sound Test Bar */}
+        {/* Audio Helper & Fast Strum Status */}
         <div style={{
           background: '#f9f9fb',
           border: '1px solid #e1e4ea',
@@ -112,7 +165,7 @@ export const App: React.FC = () => {
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
             <span>
-              <strong style={{ color: '#2e7d32' }}>⚡ 즉시 재생 준비 완료</strong>
+              <strong style={{ color: '#2e7d32' }}>🎸 리얼 스트럼 준비 완료</strong>
               {feedbackMsg && <span style={{ marginLeft: 6, color: '#111', fontWeight: 'bold' }}>· {feedbackMsg}</span>}
             </span>
             <button
@@ -140,7 +193,12 @@ export const App: React.FC = () => {
           <h2>KEY</h2>
           <div className="key-grid">{KEYS.map(note => (
             <button key={note} className={key === note ? 'selected' : ''} onClick={() => {
-              setKey(note); setCurrentProgression([]); setCurrentIndex(-1);
+              clearAllTimers();
+              GuitarSoundEngine.stopAll();
+              setKey(note);
+              setCurrentProgression([]);
+              setCurrentIndex(-1);
+              setIsPlaying(false);
             }}>{note}</button>
           ))}</div>
         </section>
