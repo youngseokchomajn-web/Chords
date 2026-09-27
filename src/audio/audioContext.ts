@@ -46,7 +46,11 @@ class SoundContextManager {
   }
 
   public get isReady(): boolean {
-    return this.ctx !== null && this.ctx.state === 'running';
+    return this.isUnlocked && this.ctx !== null && this.ctx.state === 'running';
+  }
+
+  public get unlocked(): boolean {
+    return this.isUnlocked;
   }
 }
 
