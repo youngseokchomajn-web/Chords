@@ -1,6 +1,33 @@
-# Chords
+# 🎸 Chords
 
 기타 작곡을 위한 초간단 코드 / 코드 진행 소리 확인 툴.
+
+> **핵심 개발 원칙**: 복잡한 작곡 앱을 만드는 것이 아니라, 떠오른 코드 진행을 5초 안에 기타로 들어보는 도구를 만든다.
+
+---
+
+## 🚀 빠른 시작 (로컬 개발 환경)
+
+```bash
+# 의존성 설치
+npm install
+
+# 로컬 개발 서버 실행 (기본 포트: 5173)
+npm run dev
+
+# 프로덕션 빌드 & 타입 체크
+npm run build
+```
+
+## 📂 프로젝트 구조
+- `src/types/`: 음악 이론(`music.ts`) 및 오디오 엔진(`audio.ts`) 타입 정의
+- `src/theory/`: 12반음 주파수/인터벌 연산(`notes.ts`) 및 코드/운지 매핑(`chordBuilder.ts`)
+- `src/audio/`: 모바일 WebKit AudioContext 잠금 해제 싱글톤(`audioContext.ts`) 및 Web Audio API 기타 신디사이저(`guitarSynth.ts`)
+- `src/components/`: SVG 기반 6줄 인터랙티브 지판(`Fretboard.tsx`)
+- `src/App.tsx`: 단일 화면(Single-page) 반응형 UI
+- `src/main.tsx` & `index.html`: Vite + React 웹 애플리케이션 진입점
+
+---
 
 ## 1. 프로젝트 방향
 DAW나 복잡한 작곡 프로그램이 목적이 아니다.
@@ -348,9 +375,3 @@ P0에서는 bpm도 고정값으로 처리할 수 있다.
 - keystrum
 
 특히 브라우저에서 기타 스트럼을 Web Audio로 생성하는 접근은 keystrum의 Karplus-Strong 구현 사례를 참고할 수 있다.
-
----
-
-## 개발 원칙 한 줄
-
-**복잡한 작곡 앱을 만드는 것이 아니라, 떠오른 코드 진행을 5초 안에 기타로 들어보는 도구를 만든다.**
