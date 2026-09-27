@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { NoteName } from './types/music';
 import { getChordDefinition } from './theory/chordBuilder';
-import { GuitarSoundEngine, preloadSamples } from './audio/guitarSynth';
+import { GuitarSoundEngine, subscribeLoadingProgress, preloadSamples } from './audio/guitarSynth';
 import { audioContextManager } from './audio/audioContext';
 
 const KEYS: NoteName[] = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
@@ -45,10 +45,17 @@ export const App: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [rhythmIndex, setRhythmIndex] = useState(1);
   const [bpm, setBpm] = useState(90);
-  const [audioStatus, setAudioStatus] = useState<string>('대기 중');
+  const [sampleProgress, setSampleProgress] = useState<{ loaded: number; total: number }>({ loaded: 0, total: 10 });
+  const [audioStateNotice, setAudioStateNotice] = useState<string>('');
 
   useEffect(() => {
+    const unsubscribe = subscribeLoadingProgress((loaded, total) => {
+      setSampleProgress({ loaded, total });
+    });
     void preloadSamples();
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const diatonicChords = useMemo(() => Array.from({ length: 7 }, (_, i) => degreeToChord(key, i + 1)), [key]);
@@ -56,33 +63,31 @@ export const App: React.FC = () => {
 
   const handleTestAudio = async () => {
     try {
-      setAudioStatus('재생 시도 중...');
+      setAudioStateNotice('소리 테스트 중...');
       await audioContextManager.playTestBeep();
       await GuitarSoundEngine.playTestNote();
-      setAudioStatus(`정상 작동 (샘플 ${GuitarSoundEngine.loadedSampleCount}개 준비됨)`);
+      setAudioStateNotice(`정상 출력 (샘플 ${GuitarSoundEngine.loadedSampleCount}/10 준비됨)`);
     } catch (err) {
-      setAudioStatus(`오류: ${String(err)}`);
+      setAudioStateNotice(`오류: ${String(err)}`);
     }
   };
 
   const playChord = async (degree: number) => {
     try {
       await audioContextManager.unlock();
-      setAudioStatus(`재생 중 (${audioContextManager.state})`);
       setCurrentProgression([degree]);
       setCurrentIndex(0);
       setIsPlaying(true);
       GuitarSoundEngine.strum(degreeToDefinition(key, degree).primaryVoicing.frets);
       window.setTimeout(() => { setCurrentIndex(-1); setIsPlaying(false); }, 900);
     } catch (err) {
-      setAudioStatus(`재생 오류: ${String(err)}`);
+      setAudioStateNotice(`재생 오류: ${String(err)}`);
     }
   };
 
   const playProgression = async (degrees: number[]) => {
     try {
       await audioContextManager.unlock();
-      setAudioStatus(`진행 재생 중 (${audioContextManager.state})`);
       setCurrentProgression(degrees);
       setIsPlaying(true);
       const beatSec = 60 / bpm;
@@ -103,11 +108,13 @@ export const App: React.FC = () => {
       });
       window.setTimeout(() => { setCurrentIndex(-1); setIsPlaying(false); }, degrees.length * chordStepMs);
     } catch (err) {
-      setAudioStatus(`진행 재생 오류: ${String(err)}`);
+      setAudioStateNotice(`진행 재생 오류: ${String(err)}`);
     }
   };
 
   const currentLabels = currentProgression.map(degree => degreeToChord(key, degree));
+  const isFullyLoaded = sampleProgress.loaded >= sampleProgress.total;
+  const isAnchorReady = sampleProgress.loaded >= 3;
 
   return (
     <div className="app">
@@ -117,7 +124,7 @@ export const App: React.FC = () => {
           <p>코드 진행을 바로 기타로 들어보기</p>
         </header>
 
-        {/* Audio Helper & Status Banner */}
+        {/* Audio Status & Sound Test Bar */}
         <div style={{
           background: '#f9f9fb',
           border: '1px solid #e1e4ea',
@@ -129,7 +136,16 @@ export const App: React.FC = () => {
           color: '#555'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-            <span>상태: <strong>{audioStatus}</strong></span>
+            <span>
+              {isFullyLoaded ? (
+                <strong style={{ color: '#2e7d32' }}>🎸 사운드 준비 완료</strong>
+              ) : isAnchorReady ? (
+                <strong style={{ color: '#0277bd' }}>🎸 고속 사운드 준비됨 ({sampleProgress.loaded}/10)</strong>
+              ) : (
+                <span style={{ color: '#e65100' }}>사운드 로딩 중... ({sampleProgress.loaded}/{sampleProgress.total})</span>
+              )}
+              {audioStateNotice && <span style={{ marginLeft: 6, color: '#333' }}>· {audioStateNotice}</span>}
+            </span>
             <button
               onClick={handleTestAudio}
               style={{
@@ -147,7 +163,7 @@ export const App: React.FC = () => {
             </button>
           </div>
           <div style={{ fontSize: '11px', color: '#888' }}>
-            💡 아이폰의 경우 측면 <strong>무음(진동) 스위치</strong>가 켜져 있으면 소리가 차단될 수 있습니다.
+            💡 아이폰의 경우 측면 <strong>무음(진동) 스위치</strong>를 해제하고 볼륨을 올려주세요.
           </div>
         </div>
 
