@@ -1,5 +1,5 @@
 import { audioContextManager } from './audioContext';
-import { STANDARD_TUNING_MIDI, midiToFrequency } from '../theory/notes';
+import { STANDARD_TUNING_MIDI } from '../theory/notes';
 import { StrumOptions } from '../types/audio';
 
 const BASE = import.meta.env.BASE_URL.endsWith('/')
@@ -20,9 +20,7 @@ export const SAMPLES = [
   [68, 'MartinGM2_068_Ab4_1.wav'],
 ] as const;
 
-// 3 Core anchor octaves (E2, E3, E4) that immediately cover the full guitar range
 const PRIORITY_MIDIS = [40, 52, 64];
-
 const sampleCache = new Map<number, AudioBuffer>();
 const pendingLoads = new Map<number, Promise<AudioBuffer | null>>();
 
@@ -40,43 +38,77 @@ function notifyProgress(): void {
 }
 
 /**
- * 0ms Synchronous WAV PCM16 parser.
- * Reads raw 16-bit 44.1kHz mono PCM data directly into a Web Audio AudioBuffer.
- * Completely circumvents WebKit's notorious AudioContext.decodeAudioData suspended hangs.
+ * Parse the actual WAV format instead of assuming mono/44.1 kHz.
+ * The RAW SAMPLE buttons play the original WAV directly, so chord playback
+ * must decode the same PCM frames without changing channel layout or sample rate.
  */
 function parseWavToBuffer(ctx: AudioContext, arrayBuffer: ArrayBuffer): AudioBuffer {
   const view = new DataView(arrayBuffer);
-  let offset = 12; // Skip 'RIFF' + length + 'WAVE'
-  const len = view.byteLength;
 
-  while (offset < len - 8) {
-    const chunkId = String.fromCharCode(
+  const readFourCC = (offset: number): string =>
+    String.fromCharCode(
       view.getUint8(offset),
       view.getUint8(offset + 1),
       view.getUint8(offset + 2),
       view.getUint8(offset + 3),
     );
-    const chunkSize = view.getUint32(offset + 4, true);
 
-    if (chunkId === 'data') {
-      const sampleCount = chunkSize / 2;
-      const audioBuffer = ctx.createBuffer(1, sampleCount, 44100);
-      const channelData = audioBuffer.getChannelData(0);
-      const dataStart = offset + 8;
-
-      for (let i = 0; i < sampleCount; i++) {
-        channelData[i] = view.getInt16(dataStart + i * 2, true) / 32768;
-      }
-      return audioBuffer;
-    }
-    offset += 8 + chunkSize;
+  if (readFourCC(0) !== 'RIFF' || readFourCC(8) !== 'WAVE') {
+    throw new Error('Invalid RIFF/WAVE file');
   }
-  throw new Error('WAV data chunk not found');
+
+  let offset = 12;
+  let channels = 0;
+  let sampleRate = 0;
+  let bitsPerSample = 0;
+  let audioFormat = 0;
+  let dataOffset = -1;
+  let dataSize = 0;
+
+  while (offset + 8 <= view.byteLength) {
+    const chunkId = readFourCC(offset);
+    const chunkSize = view.getUint32(offset + 4, true);
+    const chunkData = offset + 8;
+
+    if (chunkId === 'fmt ') {
+      if (chunkSize < 16) throw new Error('Invalid WAV fmt chunk');
+      audioFormat = view.getUint16(chunkData, true);
+      channels = view.getUint16(chunkData + 2, true);
+      sampleRate = view.getUint32(chunkData + 4, true);
+      bitsPerSample = view.getUint16(chunkData + 14, true);
+    } else if (chunkId === 'data') {
+      dataOffset = chunkData;
+      dataSize = Math.min(chunkSize, view.byteLength - chunkData);
+      break;
+    }
+
+    // RIFF chunks are word-aligned.
+    offset = chunkData + chunkSize + (chunkSize & 1);
+  }
+
+  if (audioFormat !== 1 || channels < 1 || !sampleRate || bitsPerSample !== 16) {
+    throw new Error(
+      `Unsupported WAV format: format=${audioFormat}, channels=${channels}, sampleRate=${sampleRate}, bits=${bitsPerSample}`,
+    );
+  }
+  if (dataOffset < 0) throw new Error('WAV data chunk not found');
+
+  const bytesPerSample = bitsPerSample / 8;
+  const frameSize = channels * bytesPerSample;
+  const frameCount = Math.floor(dataSize / frameSize);
+  const audioBuffer = ctx.createBuffer(channels, frameCount, sampleRate);
+
+  for (let channel = 0; channel < channels; channel++) {
+    const channelData = audioBuffer.getChannelData(channel);
+    for (let frame = 0; frame < frameCount; frame++) {
+      const byteOffset = dataOffset + frame * frameSize + channel * bytesPerSample;
+      channelData[frame] = view.getInt16(byteOffset, true) / 32768;
+    }
+  }
+
+  return audioBuffer;
 }
 
-/**
- * Loads a single acoustic guitar sample file and parses it into AudioBuffer.
- */
 async function loadSample(sampleMidi: number, file: string): Promise<AudioBuffer | null> {
   const cached = sampleCache.get(sampleMidi);
   if (cached) return cached;
@@ -106,24 +138,16 @@ async function loadSample(sampleMidi: number, file: string): Promise<AudioBuffer
   return job;
 }
 
-/**
- * Rapid 2-Stage Preloader:
- * Stage 1: Load 3 anchor notes (E2, E3, E4) in parallel (~890KB total, <150ms).
- * Stage 2: Background-load the remaining 7 samples to eliminate pitch-shift artifacts.
- */
 export async function preloadSamples(): Promise<void> {
   const anchors = SAMPLES.filter(([m]) => PRIORITY_MIDIS.includes(m));
   await Promise.allSettled(anchors.map(([m, f]) => loadSample(m, f)));
 
   const remaining = SAMPLES.filter(([m]) => !PRIORITY_MIDIS.includes(m));
   for (const [m, f] of remaining) {
-    if (!sampleCache.has(m)) {
-      await loadSample(m, f);
-    }
+    if (!sampleCache.has(m)) await loadSample(m, f);
   }
 }
 
-// Auto-trigger sample loading in background on page load
 if (typeof window !== 'undefined') {
   void preloadSamples().catch(() => undefined);
 }
@@ -132,12 +156,12 @@ function findBestSample(midi: number): { sampleMidi: number; buffer: AudioBuffer
   if (sampleCache.size === 0) return null;
 
   let bestMidi = -1;
-  let bestDiff = 999;
-  for (const [sMidi] of sampleCache.entries()) {
-    const diff = Math.abs(sMidi - midi);
+  let bestDiff = Infinity;
+  for (const [sampleMidi] of sampleCache.entries()) {
+    const diff = Math.abs(sampleMidi - midi);
     if (diff < bestDiff) {
       bestDiff = diff;
-      bestMidi = sMidi;
+      bestMidi = sampleMidi;
     }
   }
 
@@ -147,13 +171,11 @@ function findBestSample(midi: number): { sampleMidi: number; buffer: AudioBuffer
 
 interface ActiveVoice {
   gainNode: GainNode;
-  sourceNode?: AudioBufferSourceNode;
-  stopAtTime: number;
+  sourceNode: AudioBufferSourceNode;
 }
 
 export class GuitarSoundEngine {
   private static activeVoices: ActiveVoice[] = [];
-  private static masterLimiter: DynamicsCompressorNode | null = null;
   private static masterGain: GainNode | null = null;
 
   public static get loadedSampleCount(): number {
@@ -161,34 +183,21 @@ export class GuitarSoundEngine {
   }
 
   /**
-   * High-output master audio chain with brickwall limiter.
-   * Guarantees loud, punchy mobile phone speaker sound without distortion.
+   * Raw-sample bus: GainNode only.
+   * No compressor/limiter/EQ is inserted between the recorded sample and output,
+   * so chord playback keeps the same sample character as RAW SAMPLE audition.
    */
-  private static getMasterInput(): DynamicsCompressorNode {
+  private static getMasterInput(): GainNode {
     const ctx = audioContextManager.getContext();
-    if (!this.masterLimiter || !this.masterGain) {
-      const limiter = ctx.createDynamicsCompressor();
-      limiter.threshold.setValueAtTime(-4, ctx.currentTime);
-      limiter.knee.setValueAtTime(8, ctx.currentTime);
-      limiter.ratio.setValueAtTime(12, ctx.currentTime);
-      limiter.attack.setValueAtTime(0.003, ctx.currentTime);
-      limiter.release.setValueAtTime(0.08, ctx.currentTime);
-
+    if (!this.masterGain) {
       const master = ctx.createGain();
-      master.gain.setValueAtTime(0.95, ctx.currentTime);
-
-      limiter.connect(master);
+      master.gain.setValueAtTime(0.72, ctx.currentTime);
       master.connect(ctx.destination);
-      this.masterLimiter = limiter;
       this.masterGain = master;
     }
-    return this.masterLimiter;
+    return this.masterGain;
   }
 
-  /**
-   * Immediately fade-out and stop all currently ringing guitar strings.
-   * Prevents previous chords from muddying and overlapping with new chords.
-   */
   public static stopAll(): void {
     const ctx = audioContextManager.getContext();
     const now = ctx.currentTime;
@@ -197,22 +206,17 @@ export class GuitarSoundEngine {
     this.activeVoices.forEach(voice => {
       try {
         voice.gainNode.gain.cancelScheduledValues(now);
-        voice.gainNode.gain.setValueAtTime(voice.gainNode.gain.value, now);
+        voice.gainNode.gain.setValueAtTime(Math.max(0.0001, voice.gainNode.gain.value), now);
         voice.gainNode.gain.linearRampToValueAtTime(0.0001, now + fadeTime);
-        if (voice.sourceNode) {
-          voice.sourceNode.stop(now + fadeTime + 0.005);
-        }
+        voice.sourceNode.stop(now + fadeTime + 0.005);
       } catch {
-        // Voice already stopped
+        // Voice already stopped.
       }
     });
 
     this.activeVoices = [];
   }
 
-  /**
-   * Play an acoustic guitar string using genuine Martin HD-28 recorded samples.
-   */
   public static playString(
     stringIdx: number,
     fret: number,
@@ -227,38 +231,43 @@ export class GuitarSoundEngine {
 
     void (async () => {
       const best = findBestSample(midi);
-      if (!best) {
-        const target = SAMPLES.reduce((a, b) =>
-          Math.abs(b[0] - midi) < Math.abs(a[0] - midi) ? b : a
-        );
-        const buffer = await loadSample(target[0], target[1]);
-        if (!buffer) return;
-        return { sampleMidi: target[0], buffer };
-      }
-      return best;
+      if (best) return best;
+
+      const target = SAMPLES.reduce((a, b) =>
+        Math.abs(b[0] - midi) < Math.abs(a[0] - midi) ? b : a,
+      );
+      const buffer = await loadSample(target[0], target[1]);
+      return buffer ? { sampleMidi: target[0], buffer } : null;
     })().then(best => {
       if (!best) return;
+
       const start = Math.max(requestedStart, ctx.currentTime + 0.002);
 
       try {
         const source = ctx.createBufferSource();
         source.buffer = best.buffer;
-        source.playbackRate.setValueAtTime(2 ** ((midi - best.sampleMidi) / 12), start);
 
+        const playbackRate = 2 ** ((midi - best.sampleMidi) / 12);
+        source.playbackRate.setValueAtTime(playbackRate, start);
+
+        // Keep the original attack as intact as possible. The tiny ramp only
+        // prevents a discontinuity/click at the exact start instant.
         const gain = ctx.createGain();
-        const stringWeight = stringIdx >= 5 ? 0.27 : stringIdx >= 3 ? 0.23 : 0.20;
-        const peak = Math.min(0.30, velocity * stringWeight);
+        const stringWeight = stringIdx >= 5 ? 0.17 : stringIdx >= 3 ? 0.145 : 0.125;
+        const peak = Math.min(0.19, velocity * stringWeight);
         gain.gain.setValueAtTime(0.0001, start);
-        gain.gain.linearRampToValueAtTime(peak, start + 0.003);
-
-        const stopAt = start + best.buffer.duration;
+        gain.gain.linearRampToValueAtTime(peak, start + 0.001);
 
         source.connect(gain);
         gain.connect(this.getMasterInput());
-        source.start(start);
-        source.stop(stopAt + 0.02);
 
-        this.activeVoices.push({ gainNode: gain, sourceNode: source, stopAtTime: stopAt });
+        source.onended = () => {
+          this.activeVoices = this.activeVoices.filter(voice => voice.sourceNode !== source);
+        };
+
+        source.start(start);
+        // Do not call source.stop() here. Let the recorded sample decay naturally.
+        this.activeVoices.push({ gainNode: gain, sourceNode: source });
       } catch (err) {
         console.warn('Guitar sample playback failed:', err);
       }
@@ -269,17 +278,15 @@ export class GuitarSoundEngine {
     frets: [number, number, number, number, number, number],
     options: StrumOptions = {},
   ): void {
-    // 7ms between consecutive sounding strings gives a tight, lively acoustic strum
     const speed = options.speedSec ?? 0.012;
     const direction = options.direction ?? 'down';
     const velocity = options.velocity ?? 0.9;
-
     const indices = direction === 'down' ? [0, 1, 2, 3, 4, 5] : [5, 4, 3, 2, 1, 0];
 
     let soundingIndex = 0;
     for (const idx of indices) {
       const fret = frets[idx];
-      if (fret < 0) continue; // Skip muted strings immediately
+      if (fret < 0) continue;
 
       const stringIndex = 6 - idx;
       const offsetSec = soundingIndex * speed;
