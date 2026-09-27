@@ -1,7 +1,7 @@
 export interface StrumOptions {
-  speedSec?: number;      // Delay between strings in seconds (default: 0.035s)
+  speedSec?: number;
   direction?: 'down' | 'up';
-  velocity?: number;      // 0.0 ~ 1.0
+  velocity?: number;
 }
 
 export interface AudioEngineStatus {
