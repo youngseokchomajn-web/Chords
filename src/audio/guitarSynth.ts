@@ -93,7 +93,9 @@ export class GuitarSoundEngine {
 
       // 6. Master string envelope
       const stringGain = ctx.createGain();
-      const stringVolume = velocity * (stringIdx >= 5 ? 0.75 : 0.65);
+      // Keep the physical-model voices at a safe level. Multiple strings and the
+    // feedback loop otherwise sum to a dangerously loud output on iOS.
+    const stringVolume = velocity * (stringIdx >= 5 ? 0.08 : 0.065);
       stringGain.gain.setValueAtTime(0.0001, now);
       stringGain.gain.linearRampToValueAtTime(stringVolume, now + 0.003);
 
@@ -112,7 +114,10 @@ export class GuitarSoundEngine {
       // delay -> bodyResonance -> stringGain -> destination
       delay.connect(bodyResonance);
       bodyResonance.connect(stringGain);
-      stringGain.connect(ctx.destination);
+      // Final safety ceiling per voice before reaching the device output.
+    const safetyGain = ctx.createGain();
+    safetyGain.gain.setValueAtTime(0.7, now);
+    stringGain.connect(safetyGain).connect(ctx.destination);
 
       burst.start(now);
       burst.stop(now + burstDur + 0.002);
