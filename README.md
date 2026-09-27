@@ -375,3 +375,22 @@ P0에서는 bpm도 고정값으로 처리할 수 있다.
 - keystrum
 
 특히 브라우저에서 기타 스트럼을 Web Audio로 생성하는 접근은 keystrum의 Karplus-Strong 구현 사례를 참고할 수 있다.
+
+
+## 14. 배포
+
+GitHub Pages를 사용한다.
+
+배포 주소:
+https://youngseokchomajn-web.github.io/Chords/
+
+배포 방식:
+- `main` push
+- GitHub Actions 실행
+- `npm ci`
+- `npm run build`
+- `dist/`를 GitHub Pages에 배포
+
+Vite의 `base`는 저장소 이름에 맞춰 `/Chords/`로 설정한다.
+
+따라서 코드가 완성될수록 별도의 서버 작업 없이 GitHub에 push하는 것만으로 웹페이지가 자동 업데이트되는 구조를 사용한다.
