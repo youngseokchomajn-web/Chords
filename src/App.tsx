@@ -1,118 +1,167 @@
-import React, { useState } from 'react';
-import { NoteName, ChordQuality } from './types/music';
+import React, { useMemo, useState } from 'react';
+import { NoteName } from './types/music';
 import { getChordDefinition } from './theory/chordBuilder';
-import { Fretboard } from './components/Fretboard';
 import { GuitarSoundEngine } from './audio/guitarSynth';
 import { audioContextManager } from './audio/audioContext';
 
-const ROOT_NOTES: NoteName[] = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-const QUALITIES: { label: string; value: ChordQuality }[] = [
-  { label: 'Major', value: 'major' },
-  { label: 'Minor', value: 'minor' },
-  { label: '7', value: '7' },
-  { label: 'sus4', value: 'sus4' }
+const KEYS: NoteName[] = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+
+const MAJOR_SCALE_OFFSETS = [0, 2, 4, 5, 7, 9, 11];
+const DEGREE_QUALITIES = ['', 'm', 'm', '', '', 'm', 'dim'];
+
+const PROGRESSIONS = [
+  { label: '1-5-6-4', degrees: [1, 5, 6, 4] },
+  { label: '6-4-1-5', degrees: [6, 4, 1, 5] },
+  { label: '1-4-5', degrees: [1, 4, 5] },
+  { label: '1-6-4-5', degrees: [1, 6, 4, 5] },
+  { label: '1-5-4', degrees: [1, 5, 4] },
+  { label: '6-5-4-5', degrees: [6, 5, 4, 5] }
 ];
 
+const NOTE_TO_INDEX: Record<string, number> = {
+  C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11
+};
+const INDEX_TO_NOTE: NoteName[] = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+function degreeToChord(key: NoteName, degree: number) {
+  const rootIndex = (NOTE_TO_INDEX[key] + MAJOR_SCALE_OFFSETS[degree - 1]) % 12;
+  const root = INDEX_TO_NOTE[rootIndex];
+  return `${root}${DEGREE_QUALITIES[degree - 1]}`;
+}
+
+function degreeToDefinition(key: NoteName, degree: number) {
+  const rootIndex = (NOTE_TO_INDEX[key] + MAJOR_SCALE_OFFSETS[degree - 1]) % 12;
+  const root = INDEX_TO_NOTE[rootIndex];
+  const quality = DEGREE_QUALITIES[degree - 1] === 'm' ? 'minor' : DEGREE_QUALITIES[degree - 1] === 'dim' ? 'dim' : 'major';
+  return getChordDefinition(root, quality);
+}
+
 export const App: React.FC = () => {
-  const [selectedRoot, setSelectedRoot] = useState<NoteName>('G');
-  const [selectedQuality, setSelectedQuality] = useState<ChordQuality>('major');
+  const [key, setKey] = useState<NoteName>('C');
+  const [currentProgression, setCurrentProgression] = useState<number[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(-1);
+  const [isPlaying, setIsPlaying] = useState(false);
 
-  const chordDef = getChordDefinition(selectedRoot, selectedQuality);
+  const diatonicChords = useMemo(
+    () => Array.from({ length: 7 }, (_, i) => degreeToChord(key, i + 1)),
+    [key]
+  );
 
-  const handleUserInteraction = async () => {
+  const playChord = async (degree: number) => {
     await audioContextManager.unlock();
+    setCurrentProgression([degree]);
+    setCurrentIndex(0);
+    setIsPlaying(true);
+
+    const chord = degreeToDefinition(key, degree);
+    GuitarSoundEngine.strum(chord.primaryVoicing.frets);
+
+    window.setTimeout(() => {
+      setCurrentIndex(-1);
+      setIsPlaying(false);
+    }, 900);
   };
 
-  const handleStrum = async () => {
-    await handleUserInteraction();
-    GuitarSoundEngine.strum(chordDef.primaryVoicing.frets);
+  const playProgression = async (degrees: number[]) => {
+    await audioContextManager.unlock();
+    setCurrentProgression(degrees);
+    setIsPlaying(true);
+
+    const stepMs = 900;
+    degrees.forEach((degree, index) => {
+      window.setTimeout(() => {
+        setCurrentIndex(index);
+        const chord = degreeToDefinition(key, degree);
+        GuitarSoundEngine.strum(chord.primaryVoicing.frets);
+      }, index * stepMs);
+    });
+
+    window.setTimeout(() => {
+      setCurrentIndex(-1);
+      setIsPlaying(false);
+    }, degrees.length * stepMs);
   };
 
-  const handlePlayString = async (stringIdx: number, fret: number) => {
-    await handleUserInteraction();
-    GuitarSoundEngine.playString(stringIdx, fret);
-  };
+  const currentLabels = currentProgression.map(degree => degreeToChord(key, degree));
 
   return (
-    <div style={{ maxWidth: 440, margin: '0 auto', padding: '16px', fontFamily: 'sans-serif', textAlign: 'center' }}>
-      <header style={{ borderBottom: '2px solid #222', paddingBottom: '8px' }}>
-        <h1 style={{ fontSize: '20px', margin: 0 }}>🎸 Chords (Single Page)</h1>
-        <p style={{ fontSize: '12px', color: '#666', margin: '4px 0 0' }}>Phase 0 / P0 Prototype</p>
-      </header>
+    <div className="app">
+      <main className="card">
+        <header>
+          <h1>CHORDS</h1>
+          <p>코드 진행을 바로 기타로 들어보기</p>
+        </header>
 
-      <main>
-        <Fretboard 
-          voicing={chordDef.primaryVoicing} 
-          chordName={chordDef.displayName} 
-          onPlayString={handlePlayString} 
-        />
-
-        <div style={{ margin: '12px 0' }}>
-          <button
-            onClick={handleStrum}
-            style={{
-              background: '#111',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '24px',
-              padding: '12px 28px',
-              fontSize: '16px',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              width: '100%'
-            }}
-          >
-            ▶ 코드 스트럼 재생 (Strum)
-          </button>
-        </div>
-
-        {/* Root Selector */}
-        <div style={{ marginTop: '16px', textAlign: 'left' }}>
-          <span style={{ fontSize: '13px', fontWeight: 'bold' }}>Root Note</span>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '6px', marginTop: '6px' }}>
-            {ROOT_NOTES.map(note => (
+        <section>
+          <h2>KEY</h2>
+          <div className="key-grid">
+            {KEYS.map(note => (
               <button
                 key={note}
-                onClick={() => setSelectedRoot(note)}
-                style={{
-                  padding: '8px 0',
-                  borderRadius: '6px',
-                  border: selectedRoot === note ? '2px solid #111' : '1px solid #ddd',
-                  background: selectedRoot === note ? '#111' : '#f9f9f9',
-                  color: selectedRoot === note ? '#fff' : '#111',
-                  fontWeight: 'bold',
-                  cursor: 'pointer'
+                className={key === note ? 'selected' : ''}
+                onClick={() => {
+                  setKey(note);
+                  setCurrentProgression([]);
+                  setCurrentIndex(-1);
                 }}
               >
                 {note}
               </button>
             ))}
           </div>
-        </div>
+        </section>
 
-        {/* Quality Selector */}
-        <div style={{ marginTop: '16px', textAlign: 'left' }}>
-          <span style={{ fontSize: '13px', fontWeight: 'bold' }}>Chord Quality</span>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', marginTop: '6px' }}>
-            {QUALITIES.map(q => (
+        <section>
+          <h2>CHORD</h2>
+          <div className="chord-grid">
+            {diatonicChords.map((chord, index) => (
               <button
-                key={q.value}
-                onClick={() => setSelectedQuality(q.value)}
-                style={{
-                  padding: '8px 0',
-                  borderRadius: '6px',
-                  border: selectedQuality === q.value ? '2px solid #111' : '1px solid #ddd',
-                  background: selectedQuality === q.value ? '#111' : '#f9f9f9',
-                  color: selectedQuality === q.value ? '#fff' : '#111',
-                  fontWeight: 'bold',
-                  cursor: 'pointer'
-                }}
+                key={chord}
+                className={currentProgression.length === 1 && currentProgression[0] === index + 1 ? 'selected' : ''}
+                onClick={() => playChord(index + 1)}
               >
-                {q.label}
+                <span className="degree">{index + 1}</span>
+                {chord}
               </button>
             ))}
           </div>
-        </div>
+        </section>
+
+        <section>
+          <h2>PROGRESSION</h2>
+          <div className="progression-grid">
+            {PROGRESSIONS.map(progression => (
+              <button
+                key={progression.label}
+                onClick={() => playProgression(progression.degrees)}
+              >
+                {progression.label}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="current">
+          <h2>CURRENT</h2>
+          <div className="current-chords">
+            {currentLabels.length
+              ? currentLabels.map((chord, index) => (
+                  <React.Fragment key={index}>
+                    <span className={currentIndex === index ? 'playing' : ''}>{chord}</span>
+                    {index < currentLabels.length - 1 && <b>−</b>}
+                  </React.Fragment>
+                ))
+              : <span className="placeholder">진행을 선택하세요</span>}
+          </div>
+        </section>
+
+        <button
+          className="play"
+          disabled={!currentProgression.length || isPlaying}
+          onClick={() => playProgression(currentProgression)}
+        >
+          {isPlaying ? '● PLAYING' : '▶ PLAY'}
+        </button>
       </main>
     </div>
   );
