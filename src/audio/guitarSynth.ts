@@ -164,26 +164,25 @@ export class GuitarSoundEngine {
    * High-output master audio chain with brickwall limiter.
    * Guarantees loud, punchy mobile phone speaker sound without distortion.
    */
-  private static getMasterOutput(): GainNode {
+  private static getMasterInput(): DynamicsCompressorNode {
     const ctx = audioContextManager.getContext();
     if (!this.masterLimiter || !this.masterGain) {
       const limiter = ctx.createDynamicsCompressor();
-      limiter.threshold.setValueAtTime(-2, ctx.currentTime);
-      limiter.knee.setValueAtTime(6, ctx.currentTime);
-      limiter.ratio.setValueAtTime(16, ctx.currentTime);
-      limiter.attack.setValueAtTime(0.002, ctx.currentTime);
-      limiter.release.setValueAtTime(0.05, ctx.currentTime);
+      limiter.threshold.setValueAtTime(-4, ctx.currentTime);
+      limiter.knee.setValueAtTime(8, ctx.currentTime);
+      limiter.ratio.setValueAtTime(12, ctx.currentTime);
+      limiter.attack.setValueAtTime(0.003, ctx.currentTime);
+      limiter.release.setValueAtTime(0.08, ctx.currentTime);
 
       const master = ctx.createGain();
-      master.gain.setValueAtTime(1.35, ctx.currentTime);
+      master.gain.setValueAtTime(0.72, ctx.currentTime);
 
       limiter.connect(master);
       master.connect(ctx.destination);
-
       this.masterLimiter = limiter;
       this.masterGain = master;
     }
-    return this.masterGain;
+    return this.masterLimiter;
   }
 
   /**
@@ -223,95 +222,56 @@ export class GuitarSoundEngine {
     if (fret < 0) return;
 
     const ctx = audioContextManager.getContext();
-    this.getMasterOutput();
-
-    const now = Math.max(ctx.currentTime, ctx.currentTime + offsetSec);
     const midi = STANDARD_TUNING_MIDI[stringIdx] + fret;
+    const requestedStart = ctx.currentTime + Math.max(0, offsetSec);
 
-    this.activeVoices = this.activeVoices.filter(v => v.stopAtTime > now);
+    void (async () => {
+      const best = findBestSample(midi);
+      if (!best) {
+        const target = SAMPLES.reduce((a, b) =>
+          Math.abs(b[0] - midi) < Math.abs(a[0] - midi) ? b : a
+        );
+        const buffer = await loadSample(target[0], target[1]);
+        if (!buffer) return;
+        return { sampleMidi: target[0], buffer };
+      }
+      return best;
+    })().then(best => {
+      if (!best) return;
+      const start = Math.max(requestedStart, ctx.currentTime + 0.002);
 
-    const best = findBestSample(midi);
-
-    if (best) {
-      // High-Fidelity Real Acoustic Guitar Sample Playback
       try {
         const source = ctx.createBufferSource();
         source.buffer = best.buffer;
+        source.playbackRate.setValueAtTime(2 ** ((midi - best.sampleMidi) / 12), start);
 
-        // Micro pitch-shift to match the exact fret note
-        const semitoneDiff = midi - best.sampleMidi;
-        source.playbackRate.setValueAtTime(Math.pow(2, semitoneDiff / 12), now);
+        const gain = ctx.createGain();
+        const stringWeight = stringIdx >= 5 ? 0.82 : stringIdx >= 3 ? 0.72 : 0.62;
+        const peak = Math.min(0.78, velocity * stringWeight);
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.linearRampToValueAtTime(peak, start + 0.004);
 
-        const stringGain = ctx.createGain();
-        // Loud, natural acoustic volume
-        const vol = velocity * (stringIdx >= 4 ? 0.95 : 0.85);
-        stringGain.gain.setValueAtTime(0.0001, now);
-        stringGain.gain.linearRampToValueAtTime(vol, now + 0.003);
+        const stopAt = start + Math.min(3.2, Math.max(1.0, best.buffer.duration));
+        gain.gain.exponentialRampToValueAtTime(0.0001, stopAt);
 
-        const duration = Math.min(3.0, Math.max(1.0, best.buffer.duration));
-        const stopAtTime = now + duration;
-        stringGain.gain.exponentialRampToValueAtTime(0.0001, stopAtTime);
+        source.connect(gain);
+        gain.connect(this.getMasterInput());
+        source.start(start);
+        source.stop(stopAt + 0.02);
 
-        source.connect(stringGain);
-        stringGain.connect(this.masterLimiter!);
-
-        source.start(now);
-        source.stop(stopAtTime + 0.02);
-
-        this.activeVoices.push({
-          gainNode: stringGain,
-          sourceNode: source,
-          stopAtTime,
-        });
-        return;
+        this.activeVoices.push({ gainNode: gain, sourceNode: source, stopAtTime: stopAt });
       } catch (err) {
-        console.warn('Real sample playback failed, using fallback:', err);
+        console.warn('Guitar sample playback failed:', err);
       }
-    }
-
-    // Safety fallback: only if samples are not yet loaded (e.g. first 50ms)
-    try {
-      const freq = midiToFrequency(midi);
-      const osc = ctx.createOscillator();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(freq, now);
-
-      const filter = ctx.createBiquadFilter();
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(Math.min(8000, freq * 5), now);
-      filter.frequency.exponentialRampToValueAtTime(Math.min(1400, freq * 1.8), now + 0.25);
-
-      const stringGain = ctx.createGain();
-      const stringVol = velocity * (stringIdx >= 4 ? 0.6 : 0.5);
-      stringGain.gain.setValueAtTime(0.0001, now);
-      stringGain.gain.linearRampToValueAtTime(stringVol, now + 0.003);
-
-      const stopAtTime = now + 1.8;
-      stringGain.gain.exponentialRampToValueAtTime(0.0001, stopAtTime);
-
-      osc.connect(filter).connect(stringGain).connect(this.masterLimiter!);
-      osc.start(now);
-      osc.stop(stopAtTime + 0.02);
-
-      this.activeVoices.push({
-        gainNode: stringGain,
-        stopAtTime,
-      });
-    } catch {
-      // Safeguard
-    }
+    }).catch(() => undefined);
   }
 
-  /**
-   * Tight, rhythmic acoustic strum (~35ms) with precise per-played-string spacing.
-   * Never wastes time on muted strings.
-   */
   public static strum(
     frets: [number, number, number, number, number, number],
     options: StrumOptions = {},
   ): void {
     // 7ms between consecutive sounding strings gives a tight, lively acoustic strum
-    const speed = options.speedSec ?? 0.007;
+    const speed = options.speedSec ?? 0.009;
     const direction = options.direction ?? 'down';
     const velocity = options.velocity ?? 0.9;
 
