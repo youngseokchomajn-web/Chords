@@ -9,6 +9,35 @@ interface ActiveVoice {
 
 export class GuitarSoundEngine {
   private static activeVoices: ActiveVoice[] = [];
+  private static masterLimiter: DynamicsCompressorNode | null = null;
+  private static masterGain: GainNode | null = null;
+
+  /**
+   * Safe master audio bus with brickwall limiter to guarantee zero harsh clipping or runaway noise.
+   */
+  private static getMasterOutput(): GainNode {
+    const ctx = audioContextManager.getContext();
+    if (!this.masterLimiter || !this.masterGain) {
+      // 1. Limiter: protects ears and speakers from any loud transients or overlap
+      const limiter = ctx.createDynamicsCompressor();
+      limiter.threshold.setValueAtTime(-14, ctx.currentTime);
+      limiter.knee.setValueAtTime(10, ctx.currentTime);
+      limiter.ratio.setValueAtTime(16, ctx.currentTime);
+      limiter.attack.setValueAtTime(0.002, ctx.currentTime);
+      limiter.release.setValueAtTime(0.08, ctx.currentTime);
+
+      // 2. Master Gain: comfortable acoustic listening volume
+      const master = ctx.createGain();
+      master.gain.setValueAtTime(0.55, ctx.currentTime);
+
+      limiter.connect(master);
+      master.connect(ctx.destination);
+
+      this.masterLimiter = limiter;
+      this.masterGain = master;
+    }
+    return this.masterGain;
+  }
 
   /**
    * Immediately fade-out and stop all currently ringing guitar strings.
@@ -17,15 +46,15 @@ export class GuitarSoundEngine {
   public static stopAll(): void {
     const ctx = audioContextManager.getContext();
     const now = ctx.currentTime;
-    const fadeTime = 0.04;
+    const fadeTime = 0.03;
 
     this.activeVoices.forEach(voice => {
       try {
         voice.gainNode.gain.cancelScheduledValues(now);
         voice.gainNode.gain.setValueAtTime(voice.gainNode.gain.value, now);
-        voice.gainNode.gain.exponentialRampToValueAtTime(0.0001, now + fadeTime);
+        voice.gainNode.gain.linearRampToValueAtTime(0.0001, now + fadeTime);
       } catch {
-        // Ignore errors
+        // Voice already stopped
       }
     });
 
@@ -33,8 +62,8 @@ export class GuitarSoundEngine {
   }
 
   /**
-   * Play an acoustic guitar string using precision Karplus-Strong physical modeling.
-   * Guaranteed 0-latency, 0-download, perfectly in-tune chords.
+   * Play an acoustic guitar string using a safe, warm subtractive synthesis engine.
+   * 100% feed-forward (NO dangerous feedback loops, NO screeching or runaway howling).
    */
   public static playString(
     stringIdx: number,
@@ -46,99 +75,80 @@ export class GuitarSoundEngine {
 
     audioContextManager.unlock();
     const ctx = audioContextManager.getContext();
-    const now = Math.max(ctx.currentTime, ctx.currentTime + offsetSec);
+    this.getMasterOutput(); // Ensure master chain is ready
 
+    const now = Math.max(ctx.currentTime, ctx.currentTime + offsetSec);
     const midi = STANDARD_TUNING_MIDI[stringIdx] + fret;
     const freq = midiToFrequency(midi);
-    const period = 1 / freq;
 
     // Clean up expired voices
     this.activeVoices = this.activeVoices.filter(v => v.stopAtTime > now);
 
     try {
-      // 1. Pick attack: Shaped noise burst
-      const burstDur = Math.max(0.004, Math.min(0.012, period * 2));
-      const burstSamples = Math.floor(ctx.sampleRate * burstDur);
-      const burstBuf = ctx.createBuffer(1, burstSamples, ctx.sampleRate);
-      const data = burstBuf.getChannelData(0);
-      for (let i = 0; i < burstSamples; i++) {
-        // Exponential decay within pick burst
-        data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (burstSamples * 0.45));
-      }
+      // 1. Primary string body oscillator (warm wooden triangle)
+      const osc1 = ctx.createOscillator();
+      osc1.type = 'triangle';
+      osc1.frequency.setValueAtTime(freq, now);
 
-      const burst = ctx.createBufferSource();
-      burst.buffer = burstBuf;
+      // 2. Steel string brightness harmonic oscillator (gentle sawtooth, 15% mix)
+      const osc2 = ctx.createOscillator();
+      osc2.type = 'sawtooth';
+      osc2.frequency.setValueAtTime(freq, now);
 
-      // 2. Feedback delay line (string wavelength)
-      const delay = ctx.createDelay(1.0);
-      delay.delayTime.setValueAtTime(period, now);
+      const osc2Gain = ctx.createGain();
+      osc2Gain.gain.setValueAtTime(0.15, now);
+      osc2.connect(osc2Gain);
 
-      // 3. String damping filter (high frequencies decay faster on nylon/steel strings)
-      const damping = ctx.createBiquadFilter();
-      damping.type = 'lowpass';
-      damping.frequency.setValueAtTime(Math.min(9000, freq * 7.5), now);
+      // 3. Acoustic guitar lowpass filter (bright pluck attack that decays quickly)
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      const openCutoff = Math.min(6500, freq * 5.5);
+      const warmCutoff = Math.min(1100, freq * 1.6);
+      filter.frequency.setValueAtTime(openCutoff, now);
+      filter.frequency.exponentialRampToValueAtTime(warmCutoff, now + 0.35);
 
-      // 4. Feedback gain (sustain factor)
-      // Thicker bass strings sustain longer than high treble strings
-      const sustain = 0.984 - (midi - 40) * 0.0011;
-      const feedback = ctx.createGain();
-      feedback.gain.setValueAtTime(Math.max(0.94, Math.min(0.986, sustain)), now);
-
-      // 5. Acoustic guitar soundboard body resonance
-      const bodyResonance = ctx.createBiquadFilter();
-      bodyResonance.type = 'peaking';
-      bodyResonance.frequency.setValueAtTime(210, now); // Wooden body resonance
-      bodyResonance.Q.setValueAtTime(1.8, now);
-      bodyResonance.gain.setValueAtTime(3.5, now);
-
-      // 6. Master string envelope
+      // 4. String envelope (fast attack, natural exponential decay)
       const stringGain = ctx.createGain();
-      // Keep the physical-model voices at a safe level. Multiple strings and the
-    // feedback loop otherwise sum to a dangerously loud output on iOS.
-    const stringVolume = velocity * (stringIdx >= 5 ? 0.08 : 0.065);
+      // Controlled safe string volume to avoid summing distortion
+      const stringVol = velocity * (stringIdx >= 5 ? 0.16 : 0.12);
       stringGain.gain.setValueAtTime(0.0001, now);
-      stringGain.gain.linearRampToValueAtTime(stringVolume, now + 0.003);
+      stringGain.gain.linearRampToValueAtTime(stringVol, now + 0.004);
 
-      const decayEnd = now + Math.min(3.0, Math.max(1.2, 3.2 - (midi - 40) * 0.035));
-      stringGain.gain.setValueAtTime(stringVolume * 0.9, now + 0.5);
-      stringGain.gain.exponentialRampToValueAtTime(0.0001, decayEnd);
+      const decayDuration = Math.min(2.5, Math.max(1.0, 2.6 - (midi - 40) * 0.03));
+      const stopAtTime = now + decayDuration;
+      stringGain.gain.exponentialRampToValueAtTime(0.0001, stopAtTime);
 
-      // Connect physical loop:
-      // burst -> delay -> damping -> feedback -> delay
-      burst.connect(delay);
-      delay.connect(damping);
-      damping.connect(feedback);
-      feedback.connect(delay);
+      // Safe feed-forward audio routing:
+      // osc1 -> filter
+      // osc2 -> osc2Gain -> filter
+      // filter -> stringGain -> masterLimiter
+      osc1.connect(filter);
+      osc2Gain.connect(filter);
+      filter.connect(stringGain);
+      stringGain.connect(this.masterLimiter!);
 
-      // Connect output:
-      // delay -> bodyResonance -> stringGain -> destination
-      delay.connect(bodyResonance);
-      bodyResonance.connect(stringGain);
-      // Final safety ceiling per voice before reaching the device output.
-    const safetyGain = ctx.createGain();
-    safetyGain.gain.setValueAtTime(0.7, now);
-    stringGain.connect(safetyGain).connect(ctx.destination);
-
-      burst.start(now);
-      burst.stop(now + burstDur + 0.002);
+      osc1.start(now);
+      osc1.stop(stopAtTime + 0.02);
+      osc2.start(now);
+      osc2.stop(stopAtTime + 0.02);
 
       this.activeVoices.push({
         gainNode: stringGain,
-        stopAtTime: decayEnd
+        stopAtTime
       });
     } catch {
-      // Audio fallback safeguard
+      // Ignore audio scheduling errors
     }
   }
 
   /**
-   * Strum a chord with tight, natural acoustic guitar strum timing (~40ms total)
+   * Strum a chord with tight, natural acoustic guitar strum timing (~45ms total).
    */
   public static strum(
     frets: [number, number, number, number, number, number],
     options: StrumOptions = {},
   ): void {
-    // 8ms to 10ms per string gives a tight, lively acoustic strum (total ~45ms)
+    // 9ms between strings gives a natural, tight "촤르륵" acoustic guitar strum
     const speed = options.speedSec ?? 0.009;
     const direction = options.direction ?? 'down';
     const velocity = options.velocity ?? 0.85;
@@ -162,6 +172,6 @@ export class GuitarSoundEngine {
 
   public static playTestNote(): void {
     this.stopAll();
-    this.playString(6, 0, 0, 0.9);
+    this.playString(6, 0, 0, 0.85);
   }
 }
