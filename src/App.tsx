@@ -73,12 +73,15 @@ export const App: React.FC = () => {
   const diatonicChords = useMemo(() => Array.from({ length: 7 }, (_, i) => degreeToChord(key, i + 1)), [key]);
   const rhythm = RHYTHMS[rhythmIndex];
 
-  const handleTestAudio = () => {
+  const handleTestAudio = async () => {
     clearAllTimers();
     GuitarSoundEngine.stopAll();
+
+    // Run both paths from the same user gesture so we can isolate iOS audio routing.
     audioContextManager.playTestBeep();
-    setFeedbackMsg('소리 테스트 완료!');
-    addTimer(() => setFeedbackMsg(''), 1500);
+    const htmlResult = await audioContextManager.playHtmlAudioTest();
+    setFeedbackMsg(htmlResult === 'played' ? 'Web Audio + HTML Audio 실행됨' : 'HTML Audio 재생 실패');
+    addTimer(() => setFeedbackMsg(''), 2500);
   };
 
   const playChord = (degree: number) => {
