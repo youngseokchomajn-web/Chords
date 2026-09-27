@@ -41,6 +41,7 @@ export const CHORD_LIBRARY: Record<string, GuitarVoicing> = {
 
   // B
   'B_major': { baseFret: 2, frets: [-1, 2, 4, 4, 4, 2], barres: [{ fret: 2, fromString: 5, toString: 1 }] },
+  'B_dim':   { baseFret: 2, frets: [-1, 2, 3, 4, 3, -1] },
   'B_minor': { baseFret: 2, frets: [-1, 2, 4, 4, 3, 2], barres: [{ fret: 2, fromString: 5, toString: 1 }] },
   'B_7':     { baseFret: 1, frets: [-1, 2, 1, 2, 0, 2], fingers: [0, 2, 1, 3, 0, 4] },
   'B_sus4':  { baseFret: 2, frets: [-1, 2, 4, 4, 5, 2], barres: [{ fret: 2, fromString: 5, toString: 1 }] }
