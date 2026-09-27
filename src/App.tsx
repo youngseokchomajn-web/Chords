@@ -84,18 +84,18 @@ export const App: React.FC = () => {
 
   const handleTestAudio = async () => {
     clearAllTimers();
-    // Keep this diagnostic completely outside Web Audio.
+    await audioContextManager.unlock();
     const result = await audioContextManager.playHtmlAudioTest();
-    setFeedbackMsg(result === 'played' ? '기본 소리 재생됨' : '기본 소리 재생 실패');
+    GuitarSoundEngine.playTestNote();
+    setFeedbackMsg(result === 'played' ? '기본음 + 기타음 재생됨' : '기타음 재생됨');
     addTimer(() => setFeedbackMsg(''), 2500);
   };
 
   const playRawSample = async (sampleMidi: number, file: string) => {
     clearAllTimers();
     rawSampleAudioRef.current?.pause();
-    rawSampleAudioRef.current?.pause();
     const audio = new Audio(`${import.meta.env.BASE_URL}samples/guitar/${file}`);
-    audio.volume = 0.65;
+    audio.volume = 0.75;
     rawSampleAudioRef.current = audio;
     try {
       await audio.play();
@@ -111,14 +111,14 @@ export const App: React.FC = () => {
     clearAllTimers();
     GuitarSoundEngine.stopAll();
     await audioContextManager.unlock();
-    await GuitarSoundEngine.warmup();
+    void GuitarSoundEngine.warmup();
 
     setCurrentProgression([degree]);
     setCurrentIndex(0);
     setIsPlaying(true);
 
     const def = degreeToDefinition(key, degree);
-    GuitarSoundEngine.strum(def.primaryVoicing.frets, { speedSec: 0.012, direction: 'down' });
+    void GuitarSoundEngine.strum(def.primaryVoicing.frets, { speedSec: 0.007, direction: 'down' });
 
     addTimer(() => {
       setCurrentIndex(-1);
@@ -130,7 +130,7 @@ export const App: React.FC = () => {
     clearAllTimers();
     GuitarSoundEngine.stopAll();
     await audioContextManager.unlock();
-    await GuitarSoundEngine.warmup();
+    void GuitarSoundEngine.warmup();
 
     setCurrentProgression(degrees);
     setIsPlaying(true);
@@ -148,10 +148,10 @@ export const App: React.FC = () => {
         rhythm.pattern.forEach((stroke, strokeIndex) => {
           addTimer(() => {
             if (stroke !== 'rest') {
-              GuitarSoundEngine.strum(frets, {
+              void GuitarSoundEngine.strum(frets, {
                 direction: stroke,
-                speedSec: 0.012,
-                velocity: stroke === 'up' ? 0.78 : 0.92
+                speedSec: 0.007,
+                velocity: stroke === 'up' ? 0.82 : 0.95
               });
             }
           }, strokeIndex * stepSec * 1000);

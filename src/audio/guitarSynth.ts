@@ -177,23 +177,34 @@ interface ActiveVoice {
 export class GuitarSoundEngine {
   private static activeVoices: ActiveVoice[] = [];
   private static masterGain: GainNode | null = null;
+  private static masterLimiter: DynamicsCompressorNode | null = null;
 
   public static get loadedSampleCount(): number {
     return sampleCache.size;
   }
 
   /**
-   * Raw-sample bus: GainNode only.
-   * No compressor/limiter/EQ is inserted between the recorded sample and output,
-   * so chord playback keeps the same sample character as RAW SAMPLE audition.
+   * High-output master audio bus with transparent brickwall limiter.
+   * Ensures loud, rich Martin acoustic guitar tone on mobile speakers without distortion.
    */
   private static getMasterInput(): GainNode {
     const ctx = audioContextManager.getContext();
-    if (!this.masterGain) {
+    if (!this.masterGain || !this.masterLimiter) {
+      const limiter = ctx.createDynamicsCompressor();
+      limiter.threshold.setValueAtTime(-2, ctx.currentTime);
+      limiter.knee.setValueAtTime(6, ctx.currentTime);
+      limiter.ratio.setValueAtTime(16, ctx.currentTime);
+      limiter.attack.setValueAtTime(0.002, ctx.currentTime);
+      limiter.release.setValueAtTime(0.05, ctx.currentTime);
+
       const master = ctx.createGain();
-      master.gain.setValueAtTime(0.72, ctx.currentTime);
-      master.connect(ctx.destination);
+      master.gain.setValueAtTime(1.15, ctx.currentTime);
+
+      master.connect(limiter);
+      limiter.connect(ctx.destination);
+
       this.masterGain = master;
+      this.masterLimiter = limiter;
     }
     return this.masterGain;
   }
@@ -217,6 +228,44 @@ export class GuitarSoundEngine {
     this.activeVoices = [];
   }
 
+  private static triggerVoice(
+    buffer: AudioBuffer,
+    sampleMidi: number,
+    targetMidi: number,
+    stringIdx: number,
+    start: number,
+    velocity: number,
+  ): void {
+    const ctx = audioContextManager.getContext();
+    try {
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+
+      const playbackRate = 2 ** ((targetMidi - sampleMidi) / 12);
+      source.playbackRate.setValueAtTime(playbackRate, start);
+
+      const gain = ctx.createGain();
+      // Rich, clearly audible string volume on phone speakers
+      const stringWeight = stringIdx >= 4 ? 0.58 : 0.48;
+      const peak = velocity * stringWeight;
+
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.linearRampToValueAtTime(peak, start + 0.003);
+
+      source.connect(gain);
+      gain.connect(this.getMasterInput());
+
+      source.onended = () => {
+        this.activeVoices = this.activeVoices.filter(voice => voice.sourceNode !== source);
+      };
+
+      source.start(start);
+      this.activeVoices.push({ gainNode: gain, sourceNode: source });
+    } catch (err) {
+      console.warn('Guitar sample playback failed:', err);
+    }
+  }
+
   public static playString(
     stringIdx: number,
     fret: number,
@@ -227,60 +276,34 @@ export class GuitarSoundEngine {
 
     const ctx = audioContextManager.getContext();
     const midi = STANDARD_TUNING_MIDI[stringIdx] + fret;
-    const requestedStart = ctx.currentTime + Math.max(0, offsetSec);
+    const start = ctx.currentTime + Math.max(0, offsetSec);
 
-    void (async () => {
-      const best = findBestSample(midi);
-      if (best) return best;
+    // Fast path: immediate synchronous playback if sample is available
+    const best = findBestSample(midi);
+    if (best) {
+      this.triggerVoice(best.buffer, best.sampleMidi, midi, stringIdx, start, velocity);
+      return;
+    }
 
-      const target = SAMPLES.reduce((a, b) =>
-        Math.abs(b[0] - midi) < Math.abs(a[0] - midi) ? b : a,
-      );
-      const buffer = await loadSample(target[0], target[1]);
-      return buffer ? { sampleMidi: target[0], buffer } : null;
-    })().then(best => {
-      if (!best) return;
-
-      const start = Math.max(requestedStart, ctx.currentTime + 0.002);
-
-      try {
-        const source = ctx.createBufferSource();
-        source.buffer = best.buffer;
-
-        const playbackRate = 2 ** ((midi - best.sampleMidi) / 12);
-        source.playbackRate.setValueAtTime(playbackRate, start);
-
-        // Keep the original attack as intact as possible. The tiny ramp only
-        // prevents a discontinuity/click at the exact start instant.
-        const gain = ctx.createGain();
-        const stringWeight = stringIdx >= 5 ? 0.17 : stringIdx >= 3 ? 0.145 : 0.125;
-        const peak = Math.min(0.19, velocity * stringWeight);
-        gain.gain.setValueAtTime(0.0001, start);
-        gain.gain.linearRampToValueAtTime(peak, start + 0.001);
-
-        source.connect(gain);
-        gain.connect(this.getMasterInput());
-
-        source.onended = () => {
-          this.activeVoices = this.activeVoices.filter(voice => voice.sourceNode !== source);
-        };
-
-        source.start(start);
-        // Do not call source.stop() here. Let the recorded sample decay naturally.
-        this.activeVoices.push({ gainNode: gain, sourceNode: source });
-      } catch (err) {
-        console.warn('Guitar sample playback failed:', err);
+    // Async fallback: load nearest sample on-demand
+    const target = SAMPLES.reduce((a, b) =>
+      Math.abs(b[0] - midi) < Math.abs(a[0] - midi) ? b : a,
+    );
+    void loadSample(target[0], target[1]).then(buffer => {
+      if (buffer) {
+        const actualStart = Math.max(start, ctx.currentTime + 0.002);
+        this.triggerVoice(buffer, target[0], midi, stringIdx, actualStart, velocity);
       }
-    }).catch(() => undefined);
+    });
   }
 
   public static async strum(
     frets: [number, number, number, number, number, number],
     options: StrumOptions = {},
   ): Promise<void> {
-    if (!(await audioContextManager.ensureRunning())) return;
+    await audioContextManager.ensureRunning();
 
-    const speed = options.speedSec ?? 0.012;
+    const speed = options.speedSec ?? 0.007;
     const direction = options.direction ?? 'down';
     const velocity = options.velocity ?? 0.9;
     const indices = direction === 'down' ? [0, 1, 2, 3, 4, 5] : [5, 4, 3, 2, 1, 0];
@@ -303,7 +326,10 @@ export class GuitarSoundEngine {
   }
 
   public static async warmup(): Promise<void> {
-    await preloadSamples();
+    // Non-blocking rapid anchor preload check
+    if (sampleCache.size < 3) {
+      await preloadSamples();
+    }
   }
 
   public static playTestNote(): void {

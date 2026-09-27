@@ -12,7 +12,7 @@ class SoundContextManager {
     return this.ctx;
   }
 
-  public async unlock(): Promise<boolean> {
+  public async ensureRunning(): Promise<boolean> {
     const ctx = this.getContext();
 
     if (ctx.state === 'suspended' || (ctx.state as string) === 'interrupted') {
@@ -25,6 +25,10 @@ class SoundContextManager {
 
     this.isUnlocked = ctx.state === 'running';
     return this.isUnlocked;
+  }
+
+  public async unlock(): Promise<boolean> {
+    return this.ensureRunning();
   }
 
   public async playHtmlAudioTest(): Promise<'played' | 'failed'> {
