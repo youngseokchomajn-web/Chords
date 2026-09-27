@@ -293,6 +293,10 @@ export class GuitarSoundEngine {
     }
   }
 
+  public static async warmup(): Promise<void> {
+    await preloadSamples();
+  }
+
   public static playTestNote(): void {
     this.stopAll();
     this.playString(5, 3, 0, 0.95);
