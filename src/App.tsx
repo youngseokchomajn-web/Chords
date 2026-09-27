@@ -52,6 +52,7 @@ export const App: React.FC = () => {
   });
 
   const timersRef = useRef<number[]>([]);
+  const rawSampleAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const clearAllTimers = () => {
     timersRef.current.forEach(id => window.clearTimeout(id));
@@ -83,12 +84,27 @@ export const App: React.FC = () => {
 
   const handleTestAudio = async () => {
     clearAllTimers();
-    GuitarSoundEngine.stopAll();
-    await audioContextManager.unlock();
-    await audioContextManager.playTestBeep();
-    GuitarSoundEngine.playTestNote();
-    setFeedbackMsg('소리 테스트 완료!');
+    // Keep this diagnostic completely outside Web Audio.
+    const result = await audioContextManager.playHtmlAudioTest();
+    setFeedbackMsg(result === 'played' ? '기본 소리 재생됨' : '기본 소리 재생 실패');
     addTimer(() => setFeedbackMsg(''), 2500);
+  };
+
+  const playRawSample = async (sampleMidi: number, file: string) => {
+    clearAllTimers();
+    GuitarSoundEngine.stopAll();
+    rawSampleAudioRef.current?.pause();
+    const audio = new Audio(`${import.meta.env.BASE_URL}samples/guitar/${file}`);
+    audio.volume = 0.65;
+    rawSampleAudioRef.current = audio;
+    try {
+      await audio.play();
+      setFeedbackMsg(`원본 샘플: ${sampleMidi} MIDI`);
+      addTimer(() => setFeedbackMsg(''), 2500);
+    } catch {
+      setFeedbackMsg('원본 샘플 재생 실패');
+      addTimer(() => setFeedbackMsg(''), 2500);
+    }
   };
 
   const playChord = async (degree: number) => {
@@ -199,6 +215,20 @@ export const App: React.FC = () => {
             💡 아이폰의 경우 측면 <strong>무음(진동) 스위치</strong>를 해제하고 볼륨을 올려주세요.
           </div>
         </div>
+
+        <section>
+          <h2>RAW SAMPLES</h2>
+          <div className="progression-grid">
+            {SAMPLES.map(([sampleMidi, file]) => (
+              <button key={sampleMidi} onClick={() => playRawSample(sampleMidi, file)}>
+                {file.replace(/^MartinGM2_\d+_+/, '').replace(/_1\.wav$/, '').replace(/_/g, ' ')}
+              </button>
+            ))}
+          </div>
+          <div style={{ fontSize: '11px', color: '#888', marginTop: '6px' }}>
+            가공하지 않은 원본 기타 샘플을 직접 들어봅니다.
+          </div>
+        </section>
 
         <section>
           <h2>KEY</h2>
