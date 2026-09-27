@@ -274,10 +274,12 @@ export class GuitarSoundEngine {
     }).catch(() => undefined);
   }
 
-  public static strum(
+  public static async strum(
     frets: [number, number, number, number, number, number],
     options: StrumOptions = {},
-  ): void {
+  ): Promise<void> {
+    if (!(await audioContextManager.ensureRunning())) return;
+
     const speed = options.speedSec ?? 0.012;
     const direction = options.direction ?? 'down';
     const velocity = options.velocity ?? 0.9;
