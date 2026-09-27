@@ -1,5 +1,5 @@
 import { audioContextManager } from './audioContext';
-import { STANDARD_TUNING_MIDI } from '../theory/notes';
+import { STANDARD_TUNING_MIDI, midiToFrequency } from '../theory/notes';
 import { StrumOptions } from '../types/audio';
 
 const BASE = import.meta.env.BASE_URL.endsWith('/')
@@ -171,7 +171,7 @@ function findBestSample(midi: number): { sampleMidi: number; buffer: AudioBuffer
 
 interface ActiveVoice {
   gainNode: GainNode;
-  sourceNode: AudioBufferSourceNode;
+  sourceNode?: AudioBufferSourceNode;
 }
 
 export class GuitarSoundEngine {
@@ -198,7 +198,7 @@ export class GuitarSoundEngine {
       limiter.release.setValueAtTime(0.05, ctx.currentTime);
 
       const master = ctx.createGain();
-      master.gain.setValueAtTime(1.15, ctx.currentTime);
+      master.gain.setValueAtTime(1.25, ctx.currentTime);
 
       master.connect(limiter);
       limiter.connect(ctx.destination);
@@ -219,7 +219,9 @@ export class GuitarSoundEngine {
         voice.gainNode.gain.cancelScheduledValues(now);
         voice.gainNode.gain.setValueAtTime(Math.max(0.0001, voice.gainNode.gain.value), now);
         voice.gainNode.gain.linearRampToValueAtTime(0.0001, now + fadeTime);
-        voice.sourceNode.stop(now + fadeTime + 0.005);
+        if (voice.sourceNode) {
+          voice.sourceNode.stop(now + fadeTime + 0.005);
+        }
       } catch {
         // Voice already stopped.
       }
@@ -246,7 +248,7 @@ export class GuitarSoundEngine {
 
       const gain = ctx.createGain();
       // Rich, clearly audible string volume on phone speakers
-      const stringWeight = stringIdx >= 4 ? 0.58 : 0.48;
+      const stringWeight = stringIdx >= 4 ? 0.65 : 0.55;
       const peak = velocity * stringWeight;
 
       gain.gain.setValueAtTime(0.0001, start);
@@ -263,6 +265,42 @@ export class GuitarSoundEngine {
       this.activeVoices.push({ gainNode: gain, sourceNode: source });
     } catch (err) {
       console.warn('Guitar sample playback failed:', err);
+    }
+  }
+
+  private static triggerFallbackVoice(
+    midi: number,
+    stringIdx: number,
+    start: number,
+    velocity: number,
+  ): void {
+    const ctx = audioContextManager.getContext();
+    try {
+      const freq = midiToFrequency(midi);
+      const osc = ctx.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, start);
+
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(Math.min(7500, freq * 5.5), start);
+      filter.frequency.exponentialRampToValueAtTime(Math.min(1500, freq * 1.8), start + 0.25);
+
+      const gain = ctx.createGain();
+      const vol = velocity * (stringIdx >= 4 ? 0.65 : 0.55);
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.linearRampToValueAtTime(vol, start + 0.003);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 1.8);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.getMasterInput());
+
+      osc.start(start);
+      osc.stop(start + 1.85);
+      this.activeVoices.push({ gainNode: gain });
+    } catch {
+      // Safe fallback
     }
   }
 
@@ -285,23 +323,24 @@ export class GuitarSoundEngine {
       return;
     }
 
-    // Async fallback: load nearest sample on-demand
+    // Fail-safe: immediate acoustic synthesis sound ensures sound NEVER fails
+    this.triggerFallbackVoice(midi, stringIdx, start, velocity);
+
+    // Trigger sample load in background
     const target = SAMPLES.reduce((a, b) =>
       Math.abs(b[0] - midi) < Math.abs(a[0] - midi) ? b : a,
     );
-    void loadSample(target[0], target[1]).then(buffer => {
-      if (buffer) {
-        const actualStart = Math.max(start, ctx.currentTime + 0.002);
-        this.triggerVoice(buffer, target[0], midi, stringIdx, actualStart, velocity);
-      }
-    });
+    void loadSample(target[0], target[1]);
   }
 
-  public static async strum(
+  /**
+   * Synchronous strum - schedules voices immediately within user gesture.
+   */
+  public static strum(
     frets: [number, number, number, number, number, number],
     options: StrumOptions = {},
-  ): Promise<void> {
-    await audioContextManager.ensureRunning();
+  ): void {
+    audioContextManager.unlockSync();
 
     const speed = options.speedSec ?? 0.007;
     const direction = options.direction ?? 'down';
@@ -326,7 +365,6 @@ export class GuitarSoundEngine {
   }
 
   public static async warmup(): Promise<void> {
-    // Non-blocking rapid anchor preload check
     if (sampleCache.size < 3) {
       await preloadSamples();
     }

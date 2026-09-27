@@ -1,6 +1,11 @@
+// 1-sample silent WAV data URI to force iOS WebKit AudioSession category to Playback (bypasses silent switch)
+const SILENT_WAV_URI =
+  'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAP8A/w==';
+
 class SoundContextManager {
   private ctx: AudioContext | null = null;
   private isUnlocked = false;
+  private silentAudio: HTMLAudioElement | null = null;
 
   public getContext(): AudioContext {
     if (!this.ctx) {
@@ -12,7 +17,49 @@ class SoundContextManager {
     return this.ctx;
   }
 
+  /**
+   * Synchronous gesture unlock.
+   * Runs 100% synchronously inside the user's click/touch event.
+   * 1. Bypasses iOS physical mute/silent switch via HTML5 audio session promotion.
+   * 2. Triggers an instantaneous hardware dummy buffer directly connected to destination.
+   * 3. Dispatches ctx.resume() without awaiting or forfeiting user activation.
+   */
+  public unlockSync(): void {
+    const ctx = this.getContext();
+
+    // 1. Bypass iOS mute switch
+    if (!this.silentAudio) {
+      try {
+        const audio = new Audio(SILENT_WAV_URI);
+        audio.setAttribute('playsinline', '');
+        void audio.play().catch(() => undefined);
+        this.silentAudio = audio;
+      } catch {
+        // Safe to ignore
+      }
+    }
+
+    // 2. Hardware dummy buffer trigger
+    try {
+      const buffer = ctx.createBuffer(1, 1, 22050);
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      source.start(0);
+    } catch {
+      // Safe to ignore
+    }
+
+    // 3. Non-blocking resume
+    if (ctx.state === 'suspended' || (ctx.state as string) === 'interrupted') {
+      void ctx.resume().catch(() => undefined);
+    }
+
+    this.isUnlocked = true;
+  }
+
   public async ensureRunning(): Promise<boolean> {
+    this.unlockSync();
     const ctx = this.getContext();
 
     if (ctx.state === 'suspended' || (ctx.state as string) === 'interrupted') {
@@ -28,6 +75,7 @@ class SoundContextManager {
   }
 
   public async unlock(): Promise<boolean> {
+    this.unlockSync();
     return this.ensureRunning();
   }
 

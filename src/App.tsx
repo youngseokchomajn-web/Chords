@@ -82,13 +82,14 @@ export const App: React.FC = () => {
   const diatonicChords = useMemo(() => Array.from({ length: 7 }, (_, i) => degreeToChord(key, i + 1)), [key]);
   const rhythm = RHYTHMS[rhythmIndex];
 
-  const handleTestAudio = async () => {
+  const handleTestAudio = () => {
     clearAllTimers();
-    await audioContextManager.unlock();
-    const result = await audioContextManager.playHtmlAudioTest();
+    audioContextManager.unlockSync();
     GuitarSoundEngine.playTestNote();
-    setFeedbackMsg(result === 'played' ? '기본음 + 기타음 재생됨' : '기타음 재생됨');
-    addTimer(() => setFeedbackMsg(''), 2500);
+    void audioContextManager.playHtmlAudioTest().then(result => {
+      setFeedbackMsg(result === 'played' ? '기본음 + 기타음 재생됨' : '기타음 재생됨');
+      addTimer(() => setFeedbackMsg(''), 2500);
+    });
   };
 
   const playRawSample = async (sampleMidi: number, file: string) => {
@@ -107,18 +108,17 @@ export const App: React.FC = () => {
     }
   };
 
-  const playChord = async (degree: number) => {
+  const playChord = (degree: number) => {
     clearAllTimers();
     GuitarSoundEngine.stopAll();
-    await audioContextManager.unlock();
-    void GuitarSoundEngine.warmup();
+    audioContextManager.unlockSync();
 
     setCurrentProgression([degree]);
     setCurrentIndex(0);
     setIsPlaying(true);
 
     const def = degreeToDefinition(key, degree);
-    void GuitarSoundEngine.strum(def.primaryVoicing.frets, { speedSec: 0.007, direction: 'down' });
+    GuitarSoundEngine.strum(def.primaryVoicing.frets, { speedSec: 0.007, direction: 'down' });
 
     addTimer(() => {
       setCurrentIndex(-1);
@@ -126,11 +126,10 @@ export const App: React.FC = () => {
     }, 900);
   };
 
-  const playProgression = async (degrees: number[]) => {
+  const playProgression = (degrees: number[]) => {
     clearAllTimers();
     GuitarSoundEngine.stopAll();
-    await audioContextManager.unlock();
-    void GuitarSoundEngine.warmup();
+    audioContextManager.unlockSync();
 
     setCurrentProgression(degrees);
     setIsPlaying(true);
@@ -148,7 +147,7 @@ export const App: React.FC = () => {
         rhythm.pattern.forEach((stroke, strokeIndex) => {
           addTimer(() => {
             if (stroke !== 'rest') {
-              void GuitarSoundEngine.strum(frets, {
+              GuitarSoundEngine.strum(frets, {
                 direction: stroke,
                 speedSec: 0.007,
                 velocity: stroke === 'up' ? 0.82 : 0.95
