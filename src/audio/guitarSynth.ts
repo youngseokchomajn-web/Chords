@@ -175,7 +175,7 @@ export class GuitarSoundEngine {
       limiter.release.setValueAtTime(0.08, ctx.currentTime);
 
       const master = ctx.createGain();
-      master.gain.setValueAtTime(0.72, ctx.currentTime);
+      master.gain.setValueAtTime(0.95, ctx.currentTime);
 
       limiter.connect(master);
       master.connect(ctx.destination);
@@ -246,13 +246,12 @@ export class GuitarSoundEngine {
         source.playbackRate.setValueAtTime(2 ** ((midi - best.sampleMidi) / 12), start);
 
         const gain = ctx.createGain();
-        const stringWeight = stringIdx >= 5 ? 0.82 : stringIdx >= 3 ? 0.72 : 0.62;
-        const peak = Math.min(0.78, velocity * stringWeight);
+        const stringWeight = stringIdx >= 5 ? 0.27 : stringIdx >= 3 ? 0.23 : 0.20;
+        const peak = Math.min(0.30, velocity * stringWeight);
         gain.gain.setValueAtTime(0.0001, start);
-        gain.gain.linearRampToValueAtTime(peak, start + 0.004);
+        gain.gain.linearRampToValueAtTime(peak, start + 0.003);
 
-        const stopAt = start + Math.min(3.2, Math.max(1.0, best.buffer.duration));
-        gain.gain.exponentialRampToValueAtTime(0.0001, stopAt);
+        const stopAt = start + best.buffer.duration;
 
         source.connect(gain);
         gain.connect(this.getMasterInput());
@@ -271,7 +270,7 @@ export class GuitarSoundEngine {
     options: StrumOptions = {},
   ): void {
     // 7ms between consecutive sounding strings gives a tight, lively acoustic strum
-    const speed = options.speedSec ?? 0.009;
+    const speed = options.speedSec ?? 0.012;
     const direction = options.direction ?? 'down';
     const velocity = options.velocity ?? 0.9;
 
