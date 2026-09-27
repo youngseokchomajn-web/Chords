@@ -80,7 +80,7 @@ export class GuitarSoundEngine {
 
     try {
       const { buffer, sampleMidi } = await sampleFor(target);
-      const now = Math.max(startAt, ctx.currentTime) + offset;
+      const now = Math.max(startAt, ctx.currentTime);
       const source = ctx.createBufferSource();
       source.buffer = buffer;
       source.playbackRate.value = Math.pow(2, (target - sampleMidi) / 12);
