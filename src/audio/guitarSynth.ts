@@ -20,7 +20,9 @@ const cache = new Map<number, AudioBuffer>();
 const pending = new Map<number, Promise<AudioBuffer>>();
 
 function nearest(midi: number) {
-  return SAMPLES.reduce((a, b) => Math.abs(b[0] - midi) < Math.abs(a[0] - midi) ? b : a);
+  return SAMPLES.reduce((a, b) =>
+    Math.abs(b[0] - midi) < Math.abs(a[0] - midi) ? b : a,
+  );
 }
 
 async function sampleFor(midi: number) {
@@ -52,7 +54,12 @@ async function sampleFor(midi: number) {
   return { buffer: await job, sampleMidi };
 }
 
-function fallback(stringIdx: number, fret: number, offset: number, velocity: number) {
+function fallback(
+  stringIdx: number,
+  fret: number,
+  offset: number,
+  velocity: number,
+) {
   const ctx = audioContextManager.getContext();
   const now = ctx.currentTime + offset;
   const freq = midiToFrequency(STANDARD_TUNING_MIDI[stringIdx] + fret);
@@ -70,33 +77,56 @@ function fallback(stringIdx: number, fret: number, offset: number, velocity: num
   osc.stop(now + 1.4);
 }
 
+function playSample(
+  stringIdx: number,
+  fret: number,
+  offset: number,
+  velocity: number,
+  buffer: AudioBuffer,
+  sampleMidi: number,
+) {
+  const target = STANDARD_TUNING_MIDI[stringIdx] + fret;
+  const ctx = audioContextManager.getContext();
+  const now = Math.max(ctx.currentTime, ctx.currentTime + offset);
+
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  source.playbackRate.value = Math.pow(2, (target - sampleMidi) / 12);
+
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.linearRampToValueAtTime(velocity * 0.82, now + 0.004);
+
+  const releaseAt = now + Math.min(2.8, Math.max(0.75, buffer.duration));
+  gain.gain.exponentialRampToValueAtTime(0.0001, releaseAt);
+
+  source.connect(gain).connect(ctx.destination);
+  source.start(now);
+  source.stop(Math.min(now + buffer.duration, releaseAt + 0.02));
+}
+
 export class GuitarSoundEngine {
-  public static async playString(stringIdx: number, fret: number, offset = 0, velocity = 0.8) {
+  public static playString(
+    stringIdx: number,
+    fret: number,
+    offset = 0,
+    velocity = 0.8,
+  ) {
     if (fret < 0) return;
 
-    const target = STANDARD_TUNING_MIDI[stringIdx] + fret;
-    const ctx = audioContextManager.getContext();
-    const startAt = ctx.currentTime + offset;
+    // Critical iOS rule: never make the first audible sound depend on
+    // fetch()/decodeAudioData(). Play the built-in fallback immediately,
+    // then load the real guitar sample for subsequent playback.
+    const [sampleMidi] = nearest(STANDARD_TUNING_MIDI[stringIdx] + fret);
+    const cached = cache.get(sampleMidi);
 
-    try {
-      const { buffer, sampleMidi } = await sampleFor(target);
-      const now = Math.max(startAt, ctx.currentTime);
-      const source = ctx.createBufferSource();
-      source.buffer = buffer;
-      source.playbackRate.value = Math.pow(2, (target - sampleMidi) / 12);
-
-      const gain = ctx.createGain();
-      gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.linearRampToValueAtTime(velocity * 0.82, now + 0.004);
-      const releaseAt = now + Math.min(2.8, Math.max(0.75, buffer.duration));
-      gain.gain.exponentialRampToValueAtTime(0.0001, releaseAt);
-
-      source.connect(gain).connect(ctx.destination);
-      source.start(now);
-      source.stop(Math.min(now + buffer.duration, releaseAt + 0.02));
-    } catch {
-      fallback(stringIdx, fret, offset, velocity);
+    if (cached) {
+      playSample(stringIdx, fret, offset, velocity, cached, sampleMidi);
+      return;
     }
+
+    fallback(stringIdx, fret, offset, velocity);
+    void sampleFor(STANDARD_TUNING_MIDI[stringIdx] + fret).catch(() => undefined);
   }
 
   public static strum(
@@ -114,7 +144,12 @@ export class GuitarSoundEngine {
 
       const stringIndex = 6 - idx;
       const offset = Math.max(0, position * speed + ((position % 3) - 1) * 0.002);
-      void this.playString(stringIndex, fret, offset, velocity * (0.94 + (position % 2) * 0.03));
+      this.playString(
+        stringIndex,
+        fret,
+        offset,
+        velocity * (0.94 + (position % 2) * 0.03),
+      );
     });
   }
 }
