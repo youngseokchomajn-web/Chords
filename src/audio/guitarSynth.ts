@@ -34,7 +34,7 @@ async function sampleFor(midi:number) {
 }
 
 function fallback(stringIdx:number,fret:number,offset:number,velocity:number) {
-  const ctx=audioContextManager.getContext(), now=ctx.currentTime+offset;
+  const now=startAt;
   const freq=midiToFrequency(STANDARD_TUNING_MIDI[stringIdx]+fret);
   const gain=ctx.createGain(); gain.gain.setValueAtTime(.0001,now);
   gain.gain.linearRampToValueAtTime(velocity*.55,now+.008);
@@ -47,6 +47,8 @@ export class GuitarSoundEngine {
   public static async playString(stringIdx:number,fret:number,offset=0,velocity=.8) {
     if(fret<0)return;
     const target=STANDARD_TUNING_MIDI[stringIdx]+fret;
+    const ctx=audioContextManager.getContext();
+    const startAt=ctx.currentTime+offset;
     try {
       const {buffer,sampleMidi}=await sampleFor(target);
       const ctx=audioContextManager.getContext(), now=ctx.currentTime+offset;
