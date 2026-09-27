@@ -93,7 +93,7 @@ export const App: React.FC = () => {
     setIsPlaying(true);
 
     const def = degreeToDefinition(key, degree);
-    GuitarSoundEngine.strum(def.primaryVoicing.frets, { speedSec: 0.012, direction: 'down' });
+    GuitarSoundEngine.strum(def.primaryVoicing.frets, { speedSec: 0.007, direction: 'down' });
 
     addTimer(() => {
       setCurrentIndex(-1);
@@ -124,8 +124,8 @@ export const App: React.FC = () => {
             if (stroke !== 'rest') {
               GuitarSoundEngine.strum(frets, {
                 direction: stroke,
-                speedSec: 0.010,
-                velocity: stroke === 'up' ? 0.72 : 0.85
+                speedSec: 0.006,
+                velocity: stroke === 'up' ? 0.78 : 0.92
               });
             }
           }, strokeIndex * stepSec * 1000);
@@ -149,7 +149,7 @@ export const App: React.FC = () => {
           <p>코드 진행을 바로 기타로 들어보기</p>
         </header>
 
-        {/* Audio Helper & Fast Strum Status */}
+        {/* Audio Helper & Status Bar */}
         <div style={{
           background: '#f9f9fb',
           border: '1px solid #e1e4ea',
@@ -162,7 +162,7 @@ export const App: React.FC = () => {
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
             <span>
-              <strong style={{ color: '#2e7d32' }}>🎸 사운드 엔진 활성</strong>
+              <strong style={{ color: '#2e7d32' }}>🎸 고출력 사운드 엔진 활성</strong>
               {feedbackMsg && <span style={{ marginLeft: 6, color: '#111', fontWeight: 'bold' }}>· {feedbackMsg}</span>}
             </span>
             <button
