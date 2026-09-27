@@ -19,8 +19,8 @@ const PROGRESSIONS = [
 
 const RHYTHMS = [
   { label: '4 BEAT', pattern: ['down', 'down', 'down', 'down'] as const },
-  { label: '8 BEAT', pattern: ['down', 'down', 'up', 'up', 'down', 'up'] as const },
-  { label: '8 BEAT 2', pattern: ['down', 'rest', 'down', 'up', 'rest', 'up', 'down', 'up'] as const }
+  { label: '8 BEAT', pattern: ['down', 'rest', 'down', 'up', 'rest', 'up', 'down', 'up'] as const },
+  { label: '8 BEAT 2', pattern: ['down', 'rest', 'down', 'up', 'down', 'rest', 'up', 'up'] as const }
 ];
 
 const NOTE_TO_INDEX: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
