@@ -110,4 +110,4 @@ export class GuitarSoundEngine {
   }
 }
 
-// sample engine migration pending
+const TEST_SAMPLE_LOADER = typeof fetch === 'function';
