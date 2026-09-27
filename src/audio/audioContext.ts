@@ -4,6 +4,7 @@ class SoundContextManager {
 
   public getContext(): AudioContext {
     if (!this.ctx) {
+      this.configureAudioSession();
       const AudioCtx =
         window.AudioContext ||
         (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
@@ -16,6 +17,14 @@ class SoundContextManager {
    * Guaranteed unlock: awaits ctx.resume() inside the user gesture.
    */
   public async unlock(): Promise<boolean> {
+    return this.ensureRunning();
+  }
+
+  /**
+   * iOS Safari can suspend/interupt Web Audio after the page loses focus.
+   * Always verify the context is running immediately before scheduling audio.
+   */
+  public async ensureRunning(): Promise<boolean> {
     const ctx = this.getContext();
 
     if (ctx.state === 'suspended' || (ctx.state as string) === 'interrupted') {
@@ -28,6 +37,24 @@ class SoundContextManager {
 
     this.isUnlocked = ctx.state === 'running';
     return this.isUnlocked;
+  }
+
+  /**
+   * Use iOS's transient audio-session mode when the browser exposes it.
+   * This is intentionally feature-detected because the API is not in all browsers.
+   */
+  private configureAudioSession(): void {
+    const audioSession = (navigator as Navigator & {
+      audioSession?: { type?: string };
+    }).audioSession;
+
+    if (audioSession && audioSession.type !== 'transient') {
+      try {
+        audioSession.type = 'transient';
+      } catch {
+        // Browser does not allow changing the audio session type.
+      }
+    }
   }
 
   /**
@@ -115,3 +142,11 @@ class SoundContextManager {
 }
 
 export const audioContextManager = new SoundContextManager();
+
+if (typeof window !== 'undefined') {
+  const recoverAudio = () => {
+    void audioContextManager.ensureRunning();
+  };
+  document.addEventListener('visibilitychange', recoverAudio);
+  window.addEventListener('pageshow', recoverAudio);
+}
