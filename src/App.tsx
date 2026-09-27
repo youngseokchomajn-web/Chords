@@ -77,7 +77,6 @@ export const App: React.FC = () => {
     clearAllTimers();
     GuitarSoundEngine.stopAll();
     audioContextManager.playTestBeep();
-    GuitarSoundEngine.playTestNote();
     setFeedbackMsg('소리 테스트 완료!');
     addTimer(() => setFeedbackMsg(''), 1500);
   };
