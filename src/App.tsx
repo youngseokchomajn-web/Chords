@@ -92,7 +92,7 @@ export const App: React.FC = () => {
 
   const playRawSample = async (sampleMidi: number, file: string) => {
     clearAllTimers();
-    GuitarSoundEngine.stopAll();
+    rawSampleAudioRef.current?.pause();
     rawSampleAudioRef.current?.pause();
     const audio = new Audio(`${import.meta.env.BASE_URL}samples/guitar/${file}`);
     audio.volume = 0.65;
