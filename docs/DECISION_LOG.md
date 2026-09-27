@@ -121,3 +121,39 @@ Key → Chord → Guitar voicing → Notes → Sample playback → Strum
 6. 기존 BPM/rhythm 연결
 7. 모바일에서 청감 확인
 8. 문제가 있는 경우에만 샘플 수와 엔진 기능을 확대
+
+
+## 2026-09-27 — 오디오 재생 장애 현황 고정
+
+### 현재 상태
+
+- GitHub Pages 배포 자체는 정상적으로 빌드되는 상태.
+- 실제 기타 WAV 샘플 10개가 `public/samples/guitar/`에 존재한다.
+- 샘플 소스는 manifest에 기록된 CC0 steel-string guitar 샘플이다.
+- 기존 코드/보이싱/리듬 로직은 유지되고 있다.
+- iOS 첫 터치에서 오디오가 재생되지 않는 문제가 계속 재현되고 있다.
+- 1차 샘플 기반 구현에서 비동기 `fetch/decodeAudioData` 이후 재생하던 구조를 제거했다.
+- AudioContext를 사용자 gesture에서 동기적으로 unlock하도록 수정했다.
+- 첫 재생은 샘플 로딩을 기다리지 않고 기존 fallback oscillator를 즉시 재생하도록 수정했다.
+- 위 수정은 PR #2로 `main`에 병합되었다.
+- 그럼에도 실제 기기에서 소리가 나지 않는 상태다.
+
+### 현재 결론
+
+현재 문제는 단순한 WAV 파일 누락이나 TypeScript/build 오류로 확정할 수 없다.
+
+다음 디버깅에서는 같은 Web Audio 구조를 계속 조금씩 수정하기보다 **오디오 출력 경로 자체를 분리해서 검증**해야 한다.
+
+우선순위:
+
+1. 브라우저에서 최소 oscillator 1음이 실제로 출력되는지 확인
+2. oscillator도 무음이면 Web Audio / 사용자 gesture / 브라우저 환경 문제로 범위를 좁힌다.
+3. oscillator는 들리는데 WAV만 무음이면 sample decode/fetch 또는 BufferSource 문제로 범위를 좁힌다.
+4. WAV 재생만 문제라면 HTMLAudioElement 기반 직접 재생도 검토한다.
+5. 원인이 확인되기 전에는 기능을 더 추가하지 않는다.
+
+### 중요한 원칙
+
+이번 단계의 목표는 '더 좋은 기타 소리'가 아니라 **어떤 방식으로든 버튼을 눌렀을 때 소리가 나는 최소 경로를 확보하는 것**이다.
+
+원인 확인 후 실제 기타 샘플 재생을 다시 연결한다.
