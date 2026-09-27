@@ -1,36 +1,48 @@
 class SoundContextManager {
   private ctx: AudioContext | null = null;
-  private isUnlocked: boolean = false;
+  private isUnlocked = false;
 
   public getContext(): AudioContext {
     if (!this.ctx) {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       this.ctx = new AudioCtx();
     }
     return this.ctx;
   }
 
-  public async unlock(): Promise<boolean> {
+  /**
+   * Must be called directly from the user's pointer/touch event.
+   * Do not wait for an async operation before starting the first sound.
+   */
+  public unlock(): boolean {
     const ctx = this.getContext();
-    if (this.isUnlocked && ctx.state === 'running') {
-      return true;
-    }
 
+    // resume() is intentionally kicked off immediately inside the user gesture.
     if (ctx.state === 'suspended') {
-      await ctx.resume();
+      void ctx.resume().catch(() => undefined);
     }
 
-    // iOS/WebKit hardware warmup
-    const buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-    source.connect(ctx.destination);
-    source.start(0);
+    // Tiny audible-path warmup. The gain is effectively silent, but it
+    // initializes the Web Audio output path on iOS/Safari.
+    try {
+      const now = ctx.currentTime;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.00001, now);
+      gain.gain.exponentialRampToValueAtTime(0.00001, now + 0.02);
 
-    if (ctx.state === 'running') {
-      this.isUnlocked = true;
+      const source = ctx.createBufferSource();
+      source.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+      source.connect(gain).connect(ctx.destination);
+      source.start(now);
+      source.stop(now + 0.02);
+    } catch {
+      // The actual guitar path will report/fallback independently.
     }
-    return this.isUnlocked;
+
+    this.isUnlocked = true;
+    return true;
   }
 
   public get isReady(): boolean {
