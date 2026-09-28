@@ -240,7 +240,6 @@ export class GuitarSoundEngine {
       const peak = velocity * stringWeight;
 
       gain.gain.setValueAtTime(peak, start);
-      gain.gain.setValueAtTime(peak, start + 0.0005);
 
       source.connect(gain);
       gain.connect(this.getMasterInput());
