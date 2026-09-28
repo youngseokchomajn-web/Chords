@@ -104,29 +104,17 @@ export const App: React.FC = () => {
     });
   };
 
-  const playRawSample = async (sampleMidi: number, file: string) => {
+  const playRawSample = async (sampleMidi: number) => {
     clearAllTimers();
-    rawSampleAudioRef.current?.pause();
-
-    let audio = rawSampleAudioMapRef.current.get(sampleMidi);
-    if (!audio) {
-      audio = new Audio(`${import.meta.env.BASE_URL}samples/guitar/${file}`);
-      audio.preload = 'auto';
-      audio.volume = 0.75;
-      rawSampleAudioMapRef.current.set(sampleMidi, audio);
+    audioContextManager.unlockSync();
+    if (GuitarSoundEngine.loadedSampleCount < SAMPLES.length) {
+      setFeedbackMsg('기타 샘플 준비 중...');
+      return;
     }
-
-    audio.currentTime = 0;
-    rawSampleAudioRef.current = audio;
-
-    try {
-      await audio.play();
-      setFeedbackMsg(`원본 샘플: ${sampleMidi} MIDI`);
-      addTimer(() => setFeedbackMsg(''), 2500);
-    } catch {
-      setFeedbackMsg('원본 샘플 재생 실패');
-      addTimer(() => setFeedbackMsg(''), 2500);
-    }
+    GuitarSoundEngine.stopAll();
+    const played = GuitarSoundEngine.playRawSample(sampleMidi);
+    setFeedbackMsg(played ? `원본 샘플: ${sampleMidi} MIDI` : '원본 샘플 재생 실패');
+    addTimer(() => setFeedbackMsg(''), 2500);
   };
 
   const playChord = async (degree: number) => {
@@ -244,7 +232,7 @@ export const App: React.FC = () => {
           <h2>RAW SAMPLES</h2>
           <div className="progression-grid">
             {SAMPLES.map(([sampleMidi, file]) => (
-              <button key={sampleMidi} onClick={() => playRawSample(sampleMidi, file)}>
+              <button key={sampleMidi} onClick={() => playRawSample(sampleMidi)} disabled={sampleStats.loaded < sampleStats.total}>
                 {file.replace(/^MartinGM2_\d+_+/, '').replace(/_1\.wav$/, '').replace(/_/g, ' ')}
               </button>
             ))}
@@ -271,7 +259,8 @@ export const App: React.FC = () => {
         <section>
           <h2>CHORD</h2>
           <div className="chord-grid">{diatonicChords.map((chord, index) => (
-            <button key={chord} className={currentProgression.length === 1 && currentProgression[0] === index + 1 ? 'selected' : ''} onClick={() => playChord(index + 1)}>
+            <button key={chord} className={currentProgression.length === 1 && currentProgression[0] === index + 1 ? 'selected' : ''} disabled={sampleStats.loaded < sampleStats.total}
+              onClick={() => playChord(index + 1)}>
               <span className="degree">{index + 1}</span>{chord}
             </button>
           ))}</div>
@@ -280,7 +269,8 @@ export const App: React.FC = () => {
         <section>
           <h2>PROGRESSION</h2>
           <div className="progression-grid">{PROGRESSIONS.map(progression => (
-            <button key={progression.label} onClick={() => playProgression(progression.degrees)}>{progression.label}</button>
+            <button key={progression.label} disabled={sampleStats.loaded < sampleStats.total}
+            onClick={() => playProgression(progression.degrees)}>{progression.label}</button>
           ))}</div>
         </section>
 
