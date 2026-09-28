@@ -116,11 +116,10 @@ export const App: React.FC = () => {
     addTimer(() => setFeedbackMsg(''), 2500);
   };
 
-  const playChord = async (degree: number) => {
+  const playChord = (degree: number) => {
     clearAllTimers();
     GuitarSoundEngine.stopAll();
     audioContextManager.unlockSync();
-    await GuitarSoundEngine.warmup();
 
     setCurrentProgression([degree]);
     setCurrentIndex(0);
@@ -135,11 +134,10 @@ export const App: React.FC = () => {
     }, 900);
   };
 
-  const playProgression = async (degrees: number[]) => {
+  const playProgression = (degrees: number[]) => {
     clearAllTimers();
     GuitarSoundEngine.stopAll();
     audioContextManager.unlockSync();
-    await GuitarSoundEngine.warmup();
 
     setCurrentProgression(degrees);
     setIsPlaying(true);
