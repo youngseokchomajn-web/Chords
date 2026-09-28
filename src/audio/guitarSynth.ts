@@ -327,9 +327,24 @@ export class GuitarSoundEngine {
   }
 
   public static async warmup(): Promise<void> {
-    if (sampleCache.size < 3) {
-      await preloadSamples();
-    }
+    // Chord/raw playback should never start a network/decode wait on click.
+    // Always wait for the full recorded-sample set to be ready.
+    await preloadSamples();
+  }
+
+  public static playRawSample(sampleMidi: number): boolean {
+    const buffer = sampleCache.get(sampleMidi);
+    if (!buffer) return false;
+
+    const ctx = audioContextManager.getContext();
+    const source = ctx.createBufferSource();
+    const gain = ctx.createGain();
+    source.buffer = buffer;
+    gain.gain.setValueAtTime(0.75, ctx.currentTime);
+    source.connect(gain);
+    gain.connect(ctx.destination);
+    source.start(ctx.currentTime);
+    return true;
   }
 
   public static playTestNote(): void {
