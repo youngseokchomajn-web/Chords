@@ -1,6 +1,7 @@
 import { audioContextManager } from './audioContext';
 import { STANDARD_TUNING_MIDI } from '../theory/notes';
 import { StrumOptions } from '../types/audio';
+import { selectSample } from './sampleSelector';
 
 const BASE = import.meta.env.BASE_URL.endsWith('/')
   ? import.meta.env.BASE_URL
@@ -169,6 +170,24 @@ function findBestSample(midi: number): { sampleMidi: number; buffer: AudioBuffer
   return buffer ? { sampleMidi: bestMidi, buffer } : null;
 }
 
+export function findBestSampleForString(
+  stringIdx: number,
+  fret: number,
+  midi: number
+): { sampleMidi: number; buffer: AudioBuffer } | null {
+  if (sampleCache.size === 0) return null;
+
+  const selected = selectSample({ stringNumber: stringIdx, fret, targetMidi: midi });
+  if (selected && sampleCache.has(selected.sampleMidi)) {
+    return {
+      sampleMidi: selected.sampleMidi,
+      buffer: sampleCache.get(selected.sampleMidi)!
+    };
+  }
+
+  return findBestSample(midi);
+}
+
 interface ActiveVoice {
   gainNode: GainNode;
   sourceNode?: AudioBufferSourceNode;
@@ -268,7 +287,7 @@ export class GuitarSoundEngine {
     const start = ctx.currentTime + Math.max(0, offsetSec);
 
     // Fast path: immediate synchronous playback if sample is available
-    const best = findBestSample(midi);
+    const best = findBestSampleForString(stringIdx, fret, midi);
     if (best) {
       this.triggerVoice(best.buffer, best.sampleMidi, midi, stringIdx, start, velocity);
       return;

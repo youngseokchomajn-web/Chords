@@ -3,10 +3,18 @@ import { NoteName } from './types/music';
 import { getChordDefinition } from './theory/chordBuilder';
 import { GuitarSoundEngine, subscribeLoadingProgress, SAMPLES } from './audio/guitarSynth';
 import { audioContextManager } from './audio/audioContext';
+import { getChordDiagnostic, ChordDiagnostic } from './audio/sampleSelector';
 
 const KEYS: NoteName[] = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 const MAJOR_SCALE_OFFSETS = [0, 2, 4, 5, 7, 9, 11];
 const DEGREE_QUALITIES = ['', 'm', 'm', '', '', 'm', 'dim'];
+
+const BENCHMARK_CHORDS = [
+  { label: 'C Major', key: 'C' as NoteName, degree: 1 },
+  { label: 'G Major', key: 'G' as NoteName, degree: 1 },
+  { label: 'A Minor', key: 'C' as NoteName, degree: 6 },
+  { label: 'F Major', key: 'C' as NoteName, degree: 4 },
+];
 
 const PROGRESSIONS = [
   { label: '1-5-6-4', degrees: [1, 5, 6, 4] },
@@ -50,6 +58,11 @@ export const App: React.FC = () => {
     loaded: 0,
     total: SAMPLES.length,
   });
+  const [activeDiagnostic, setActiveDiagnostic] = useState<ChordDiagnostic | null>(() => {
+    const def = degreeToDefinition('C', 1);
+    return getChordDiagnostic('C', def.primaryVoicing.frets);
+  });
+  const [showDiagnostic, setShowDiagnostic] = useState<boolean>(true);
 
   const timersRef = useRef<number[]>([]);
   const rawSampleAudioMapRef = useRef<Map<number, HTMLAudioElement>>(new Map());
@@ -125,7 +138,10 @@ export const App: React.FC = () => {
     setCurrentIndex(0);
     setIsPlaying(true);
 
+    const chordName = degreeToChord(key, degree);
     const def = degreeToDefinition(key, degree);
+    setActiveDiagnostic(getChordDiagnostic(chordName, def.primaryVoicing.frets));
+
     GuitarSoundEngine.strum(def.primaryVoicing.frets, { speedSec: 0.007, direction: 'down' });
 
     addTimer(() => {
@@ -224,6 +240,113 @@ export const App: React.FC = () => {
             💡 아이폰의 경우 측면 <strong>무음(진동) 스위치</strong>를 해제하고 볼륨을 올려주세요.
           </div>
         </div>
+
+        {/* Phase 1 Mapping Diagnostic & Benchmark Panel */}
+        <section style={{
+          background: '#f4f5f8',
+          border: '1px solid #dde1e9',
+          borderRadius: '10px',
+          padding: '12px',
+          margin: '0 0 16px',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <h2 style={{ margin: 0, fontSize: '13px', color: '#1a1a1a' }}>
+              🔍 코드 매핑 진단 (Phase 1)
+            </h2>
+            <button
+              onClick={() => setShowDiagnostic(v => !v)}
+              style={{
+                background: 'transparent',
+                border: '1px solid #ccc',
+                borderRadius: '4px',
+                padding: '2px 8px',
+                fontSize: '11px',
+                cursor: 'pointer'
+              }}
+            >
+              {showDiagnostic ? '접기 ▲' : '펼치기 ▼'}
+            </button>
+          </div>
+
+          {showDiagnostic && (
+            <div>
+              <div style={{ fontSize: '11px', color: '#666', marginBottom: '8px' }}>
+                개발계획 v2 기준 고정 벤치마크 코드 (C / G / Am / F) 매핑 현황 및 A/B 테스트:
+              </div>
+              <div style={{ display: 'flex', gap: '6px', marginBottom: '10px' }}>
+                {BENCHMARK_CHORDS.map(bench => (
+                  <button
+                    key={bench.label}
+                    onClick={() => {
+                      setKey(bench.key);
+                      playChord(bench.degree);
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: '6px 4px',
+                      fontSize: '11px',
+                      fontWeight: 'bold',
+                      background: activeDiagnostic?.chordName === bench.label.split(' ')[0] ? '#1a73e8' : '#fff',
+                      color: activeDiagnostic?.chordName === bench.label.split(' ')[0] ? '#fff' : '#333',
+                      border: '1px solid #bbb',
+                      borderRadius: '6px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {bench.label}
+                  </button>
+                ))}
+              </div>
+
+              {activeDiagnostic && (
+                <div style={{ background: '#fff', padding: '8px 10px', borderRadius: '6px', border: '1px solid #e0e0e0', fontSize: '11px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontWeight: 'bold' }}>
+                    <span>선택 코드: <strong style={{ color: '#1a73e8' }}>{activeDiagnostic.chordName}</strong></span>
+                    <span>평균 시프트: <strong>{activeDiagnostic.averagePitchShift}st</strong> (최대: {activeDiagnostic.maxPitchShift}st)</span>
+                  </div>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '11px' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid #ddd', color: '#666' }}>
+                        <th style={{ padding: '3px' }}>줄</th>
+                        <th style={{ padding: '3px' }}>프렛</th>
+                        <th style={{ padding: '3px' }}>타겟음</th>
+                        <th style={{ padding: '3px' }}>매핑 샘플</th>
+                        <th style={{ padding: '3px' }}>시프트</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {activeDiagnostic.strings.map(s => {
+                        const isMute = s.fret < 0;
+                        const isOriginal = s.pitchShiftSemitones === 0 && !isMute;
+                        return (
+                          <tr key={s.stringNumber} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                            <td style={{ padding: '4px' }}>{s.stringNumber}번줄</td>
+                            <td style={{ padding: '4px' }}>{isMute ? 'X' : s.fret}</td>
+                            <td style={{ padding: '4px', fontWeight: 'bold' }}>{s.targetNote}</td>
+                            <td style={{ padding: '4px', color: '#555' }}>
+                              {isMute ? '-' : s.sampleFile.replace(/^MartinGM2_\d+_/, '').replace(/_1\.wav$/, '')}
+                            </td>
+                            <td style={{ padding: '4px' }}>
+                              {isMute ? (
+                                <span style={{ color: '#999' }}>Mute</span>
+                              ) : isOriginal ? (
+                                <span style={{ color: '#2e7d32', fontWeight: 'bold' }}>원음 (0st)</span>
+                              ) : (
+                                <span style={{ color: '#e65100', fontWeight: 'bold' }}>
+                                  {s.pitchShiftSemitones > 0 ? `+${s.pitchShiftSemitones}` : s.pitchShiftSemitones}st
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </section>
 
         <section>
           <h2>RAW SAMPLES</h2>

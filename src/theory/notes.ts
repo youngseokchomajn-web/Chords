@@ -28,3 +28,10 @@ export function normalizeNoteName(note: string): NoteName {
   };
   return map[note] || (note as NoteName);
 }
+
+export function midiToNoteName(midi: number): string {
+  if (midi < 0) return 'Mute';
+  const note = CHROMATIC_NOTES[midi % 12];
+  const octave = Math.floor(midi / 12) - 1;
+  return `${note}${octave}`;
+}
