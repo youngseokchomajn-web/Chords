@@ -177,34 +177,22 @@ interface ActiveVoice {
 export class GuitarSoundEngine {
   private static activeVoices: ActiveVoice[] = [];
   private static masterGain: GainNode | null = null;
-  private static masterLimiter: DynamicsCompressorNode | null = null;
 
   public static get loadedSampleCount(): number {
     return sampleCache.size;
   }
 
   /**
-   * High-output master audio bus with transparent brickwall limiter.
-   * Ensures loud, rich Martin acoustic guitar tone on mobile speakers without distortion.
+   * Keep chord playback as close as possible to the original recorded sample.
+   * No compressor/limiter is used here: the RAW SAMPLE path is the reference tone.
    */
   private static getMasterInput(): GainNode {
     const ctx = audioContextManager.getContext();
-    if (!this.masterGain || !this.masterLimiter) {
-      const limiter = ctx.createDynamicsCompressor();
-      limiter.threshold.setValueAtTime(-2, ctx.currentTime);
-      limiter.knee.setValueAtTime(6, ctx.currentTime);
-      limiter.ratio.setValueAtTime(16, ctx.currentTime);
-      limiter.attack.setValueAtTime(0.002, ctx.currentTime);
-      limiter.release.setValueAtTime(0.05, ctx.currentTime);
-
+    if (!this.masterGain) {
       const master = ctx.createGain();
-      master.gain.setValueAtTime(1.25, ctx.currentTime);
-
-      master.connect(limiter);
-      limiter.connect(ctx.destination);
-
+      master.gain.setValueAtTime(1.0, ctx.currentTime);
+      master.connect(ctx.destination);
       this.masterGain = master;
-      this.masterLimiter = limiter;
     }
     return this.masterGain;
   }
@@ -247,12 +235,12 @@ export class GuitarSoundEngine {
       source.playbackRate.setValueAtTime(playbackRate, start);
 
       const gain = ctx.createGain();
-      // Rich, clearly audible string volume on phone speakers
+      // Keep the recorded attack intact. Only use a tiny fade-in to avoid a click.
       const stringWeight = stringIdx >= 4 ? 0.65 : 0.55;
       const peak = velocity * stringWeight;
 
-      gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.linearRampToValueAtTime(peak, start + 0.003);
+      gain.gain.setValueAtTime(peak, start);
+      gain.gain.setValueAtTime(peak, start + 0.0005);
 
       source.connect(gain);
       gain.connect(this.getMasterInput());
