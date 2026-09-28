@@ -52,7 +52,6 @@ export const App: React.FC = () => {
   });
 
   const timersRef = useRef<number[]>([]);
-  const rawSampleAudioRef = useRef<HTMLAudioElement | null>(null);
   const rawSampleAudioMapRef = useRef<Map<number, HTMLAudioElement>>(new Map());
 
   const clearAllTimers = () => {
