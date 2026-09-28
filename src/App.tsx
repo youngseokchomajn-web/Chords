@@ -53,6 +53,7 @@ export const App: React.FC = () => {
 
   const timersRef = useRef<number[]>([]);
   const rawSampleAudioRef = useRef<HTMLAudioElement | null>(null);
+  const rawSampleAudioMapRef = useRef<Map<number, HTMLAudioElement>>(new Map());
 
   const clearAllTimers = () => {
     timersRef.current.forEach(id => window.clearTimeout(id));
@@ -69,6 +70,15 @@ export const App: React.FC = () => {
   };
 
   useEffect(() => {
+    const rawAudioMap = rawSampleAudioMapRef.current;
+    SAMPLES.forEach(([sampleMidi, file]) => {
+      const audio = new Audio(`${import.meta.env.BASE_URL}samples/guitar/${file}`);
+      audio.preload = 'auto';
+      audio.volume = 0.75;
+      audio.load();
+      rawAudioMap.set(sampleMidi, audio);
+    });
+
     const unsubscribe = subscribeLoadingProgress((loaded, total) => {
       setSampleStats({ loaded, total });
     });
@@ -76,6 +86,8 @@ export const App: React.FC = () => {
       unsubscribe();
       clearAllTimers();
       GuitarSoundEngine.stopAll();
+      rawAudioMap.forEach(audio => audio.pause());
+      rawAudioMap.clear();
     };
   }, []);
 
@@ -95,9 +107,18 @@ export const App: React.FC = () => {
   const playRawSample = async (sampleMidi: number, file: string) => {
     clearAllTimers();
     rawSampleAudioRef.current?.pause();
-    const audio = new Audio(`${import.meta.env.BASE_URL}samples/guitar/${file}`);
-    audio.volume = 0.75;
+
+    let audio = rawSampleAudioMapRef.current.get(sampleMidi);
+    if (!audio) {
+      audio = new Audio(`${import.meta.env.BASE_URL}samples/guitar/${file}`);
+      audio.preload = 'auto';
+      audio.volume = 0.75;
+      rawSampleAudioMapRef.current.set(sampleMidi, audio);
+    }
+
+    audio.currentTime = 0;
     rawSampleAudioRef.current = audio;
+
     try {
       await audio.play();
       setFeedbackMsg(`원본 샘플: ${sampleMidi} MIDI`);
@@ -108,10 +129,11 @@ export const App: React.FC = () => {
     }
   };
 
-  const playChord = (degree: number) => {
+  const playChord = async (degree: number) => {
     clearAllTimers();
     GuitarSoundEngine.stopAll();
     audioContextManager.unlockSync();
+    await GuitarSoundEngine.warmup();
 
     setCurrentProgression([degree]);
     setCurrentIndex(0);
@@ -126,10 +148,11 @@ export const App: React.FC = () => {
     }, 900);
   };
 
-  const playProgression = (degrees: number[]) => {
+  const playProgression = async (degrees: number[]) => {
     clearAllTimers();
     GuitarSoundEngine.stopAll();
     audioContextManager.unlockSync();
+    await GuitarSoundEngine.warmup();
 
     setCurrentProgression(degrees);
     setIsPlaying(true);
