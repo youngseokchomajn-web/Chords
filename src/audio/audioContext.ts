@@ -21,6 +21,21 @@ class SoundContextManager {
   public unlockSync(): void {
     const ctx = this.getContext();
 
+    // iOS Safari can leave the output session in a silent/stale state even
+    // while AudioContext reports `running`. Cycling the audio session type
+    // on a real user gesture forces WebKit to refresh the output category.
+    const audioSession = (navigator as Navigator & {
+      audioSession?: { type: string };
+    }).audioSession;
+    if (audioSession) {
+      try {
+        audioSession.type = 'ambient';
+        audioSession.type = 'playback';
+      } catch {
+        // Ignore browsers that expose audioSession but reject the assignment.
+      }
+    }
+
     if (ctx.state === 'suspended' || (ctx.state as string) === 'interrupted') {
       void ctx.resume().catch(err => {
         console.warn('AudioContext resume failed:', err);
