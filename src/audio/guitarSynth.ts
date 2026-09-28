@@ -1,5 +1,5 @@
 import { audioContextManager } from './audioContext';
-import { STANDARD_TUNING_MIDI, midiToFrequency } from '../theory/notes';
+import { STANDARD_TUNING_MIDI } from '../theory/notes';
 import { StrumOptions } from '../types/audio';
 
 const BASE = import.meta.env.BASE_URL.endsWith('/')
@@ -268,42 +268,6 @@ export class GuitarSoundEngine {
     }
   }
 
-  private static triggerFallbackVoice(
-    midi: number,
-    stringIdx: number,
-    start: number,
-    velocity: number,
-  ): void {
-    const ctx = audioContextManager.getContext();
-    try {
-      const freq = midiToFrequency(midi);
-      const osc = ctx.createOscillator();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(freq, start);
-
-      const filter = ctx.createBiquadFilter();
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(Math.min(7500, freq * 5.5), start);
-      filter.frequency.exponentialRampToValueAtTime(Math.min(1500, freq * 1.8), start + 0.25);
-
-      const gain = ctx.createGain();
-      const vol = velocity * (stringIdx >= 4 ? 0.65 : 0.55);
-      gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.linearRampToValueAtTime(vol, start + 0.003);
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + 1.8);
-
-      osc.connect(filter);
-      filter.connect(gain);
-      gain.connect(this.getMasterInput());
-
-      osc.start(start);
-      osc.stop(start + 1.85);
-      this.activeVoices.push({ gainNode: gain });
-    } catch {
-      // Safe fallback
-    }
-  }
-
   public static playString(
     stringIdx: number,
     fret: number,
@@ -323,10 +287,8 @@ export class GuitarSoundEngine {
       return;
     }
 
-    // Fail-safe: immediate acoustic synthesis sound ensures sound NEVER fails
-    this.triggerFallbackVoice(midi, stringIdx, start, velocity);
-
-    // Trigger sample load in background
+    // Chord playback must use recorded guitar samples only.
+    // If preload is incomplete, the caller should wait rather than synthesize a fake guitar tone.
     const target = SAMPLES.reduce((a, b) =>
       Math.abs(b[0] - midi) < Math.abs(a[0] - midi) ? b : a,
     );
