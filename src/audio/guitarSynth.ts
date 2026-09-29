@@ -2,24 +2,12 @@ import { audioContextManager } from './audioContext';
 import { STANDARD_TUNING_MIDI } from '../theory/notes';
 import { StrumOptions } from '../types/audio';
 import { selectSample } from './sampleSelector';
+import { SAMPLES } from './sampleCatalog';
 
 const BASE = import.meta.env.BASE_URL.endsWith('/')
   ? import.meta.env.BASE_URL
   : `${import.meta.env.BASE_URL}/`;
 const SAMPLE_PATH = `${BASE}samples/guitar`;
-
-export const SAMPLES = [
-  [40, 'MartinGM2_040__E2_1.wav'],
-  [43, 'MartinGM2_043__G2_1.wav'],
-  [46, 'MartinGM2_046_Bb2_1.wav'],
-  [49, 'MartinGM2_049_Db3_1.wav'],
-  [52, 'MartinGM2_052__E3_1.wav'],
-  [55, 'MartinGM2_055__G3_1.wav'],
-  [58, 'MartinGM2_058_Bb3_1.wav'],
-  [61, 'MartinGM2_061_Db4_1.wav'],
-  [64, 'MartinGM2_064__E4_1.wav'],
-  [68, 'MartinGM2_068_Ab4_1.wav'],
-] as const;
 
 const PRIORITY_MIDIS = [40, 52, 64];
 const sampleCache = new Map<number, AudioBuffer>();
