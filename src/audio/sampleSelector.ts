@@ -1,5 +1,5 @@
 import { STANDARD_TUNING_MIDI, midiToNoteName } from '../theory/notes';
-import { SAMPLES } from './guitarSynth';
+import { GuitarSample, GUITAR_SAMPLES } from './sampleCatalog';
 
 export interface SampleSelectionQuery {
   stringNumber: number; // 6 (low E) to 1 (high E)
@@ -12,6 +12,10 @@ export interface SelectedSample {
   fileName: string;
   pitchShiftSemitones: number;
   playbackRate: number;
+  sourceStringNumber?: number;
+  sourceFret?: number;
+  selectionReason: 'same-string-nearest-fret' | 'metadata-pitch-nearest' | 'midi-nearest';
+  selectionScore: number;
 }
 
 export interface StringDiagnostic {
@@ -22,6 +26,10 @@ export interface StringDiagnostic {
   sampleMidi: number;
   sampleFile: string;
   pitchShiftSemitones: number;
+  sourceStringNumber?: number;
+  sourceFret?: number;
+  selectionReason?: SelectedSample['selectionReason'];
+  selectionScore?: number;
 }
 
 export interface ChordDiagnostic {
@@ -31,35 +39,81 @@ export interface ChordDiagnostic {
   averagePitchShift: number;
 }
 
-/**
- * Phase 2 String/Fret-aware Sample Selector Interface.
- * Currently maps to the nearest available recorded sample in the active library,
- * while preserving stringNumber and fret for future string-specific sound banks (Phase 3).
- */
-export function selectSample(query: SampleSelectionQuery): SelectedSample | null {
-  if (query.fret < 0 || query.targetMidi < 0) return null;
-
-  // In Phase 2: find closest MIDI in current bank.
-  // In Phase 3: string-specific lookup will take precedence.
-  const target = SAMPLES.reduce((best, curr) =>
-    Math.abs(curr[0] - query.targetMidi) < Math.abs(best[0] - query.targetMidi) ? curr : best
-  );
-
-  const shift = query.targetMidi - target[0];
-  const playbackRate = Math.pow(2, shift / 12);
-
-  return {
-    sampleMidi: target[0],
-    fileName: target[1],
-    pitchShiftSemitones: shift,
-    playbackRate,
-  };
+function abs(value: number): number {
+  return Math.abs(value);
 }
 
 /**
- * Phase 1 Mapping Diagnostic.
- * Computes exact per-string MIDI, sample choice, and pitch shift for any given chord voicing.
+ * Deterministic String/Fret-aware selector.
+ *
+ * Verified position metadata is preferred over raw MIDI proximity:
+ * 1. same string
+ * 2. nearby fret on that string
+ * 3. small pitch shift
+ * 4. MIDI distance
+ *
+ * The current Martin bank has no verified string/fret metadata, so it safely
+ * falls back to the previous MIDI-nearest behavior. No physical position is
+ * guessed from the sample filename.
  */
+export function selectSample(query: SampleSelectionQuery): SelectedSample | null {
+  if (query.fret < 0 || query.targetMidi < 0 || GUITAR_SAMPLES.length === 0) return null;
+
+  const withPosition = GUITAR_SAMPLES.filter(
+    sample => sample.stringNumber !== undefined && sample.fret !== undefined,
+  );
+
+  if (withPosition.length > 0) {
+    const sameString = withPosition.filter(sample => sample.stringNumber === query.stringNumber);
+
+    if (sameString.length > 0) {
+      const target = [...sameString].sort((a, b) => {
+        const fretDiff = abs((a.fret ?? 0) - query.fret) - abs((b.fret ?? 0) - query.fret);
+        if (fretDiff !== 0) return fretDiff;
+        const shiftDiff = abs(a.midi - query.targetMidi) - abs(b.midi - query.targetMidi);
+        if (shiftDiff !== 0) return shiftDiff;
+        return a.midi - b.midi;
+      })[0];
+      return makeSelection(target, query, 'same-string-nearest-fret',
+        abs((target.fret ?? 0) - query.fret) * 100 + abs(target.midi - query.targetMidi));
+    }
+
+    const target = [...withPosition].sort((a, b) => {
+      const shiftDiff = abs(a.midi - query.targetMidi) - abs(b.midi - query.targetMidi);
+      if (shiftDiff !== 0) return shiftDiff;
+      return a.midi - b.midi;
+    })[0];
+    return makeSelection(target, query, 'metadata-pitch-nearest', abs(target.midi - query.targetMidi));
+  }
+
+  const target = [...GUITAR_SAMPLES].sort((a, b) => {
+    const diff = abs(a.midi - query.targetMidi) - abs(b.midi - query.targetMidi);
+    if (diff !== 0) return diff;
+    return a.midi - b.midi;
+  })[0];
+
+  return makeSelection(target, query, 'midi-nearest', abs(target.midi - query.targetMidi));
+}
+
+function makeSelection(
+  sample: GuitarSample,
+  query: SampleSelectionQuery,
+  selectionReason: SelectedSample['selectionReason'],
+  selectionScore: number,
+): SelectedSample {
+  const shift = query.targetMidi - sample.midi;
+  return {
+    sampleMidi: sample.midi,
+    fileName: sample.fileName,
+    pitchShiftSemitones: shift,
+    playbackRate: Math.pow(2, shift / 12),
+    sourceStringNumber: sample.stringNumber,
+    sourceFret: sample.fret,
+    selectionReason,
+    selectionScore,
+  };
+}
+
 export function getChordDiagnostic(
   chordName: string,
   frets: [number, number, number, number, number, number]
@@ -98,9 +152,9 @@ export function getChordDiagnostic(
       };
     }
 
-    const absShift = Math.abs(selected.pitchShiftSemitones);
+    const absShift = abs(selected.pitchShiftSemitones);
     totalShift += absShift;
-    if (absShift > maxShift) maxShift = absShift;
+    maxShift = Math.max(maxShift, absShift);
     soundingCount++;
 
     return {
@@ -111,6 +165,10 @@ export function getChordDiagnostic(
       sampleMidi: selected.sampleMidi,
       sampleFile: selected.fileName,
       pitchShiftSemitones: selected.pitchShiftSemitones,
+      sourceStringNumber: selected.sourceStringNumber,
+      sourceFret: selected.sourceFret,
+      selectionReason: selected.selectionReason,
+      selectionScore: selected.selectionScore,
     };
   });
 
