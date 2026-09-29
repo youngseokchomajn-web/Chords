@@ -393,3 +393,25 @@ string balance
 2. 현재 Martin 샘플에서 C/G/Am/F diagnostic의 fallback 결과 확인
 3. 실제 string/fret metadata 샘플을 추가한 테스트 fixture로 selector 우선순위 검증
 4. 검증 후 Phase 3 steel-string string/fret 샘플 조사
+
+
+## 2026-09-29 — 기타 샘플 준비 시간 최적화 1차
+
+### 문제
+UI에서 `🎸 마틴 어쿠스틱 준비됨 (5/10)` 상태가 오래 유지되는 현상을 확인했다. 기존 `preloadSamples()`는 우선 샘플 3개를 병렬 로드한 뒤 나머지 7개를 **순차적으로 하나씩** fetch/decode했다.
+
+### 변경
+- 10개 WAV를 모두 동시에 `loadSample()`에 전달하도록 변경했다.
+- 기존의 priority 3개 → 나머지 7개 순차 대기 구조를 제거했다.
+- WAV 파일, 샘플 선택, gain, strum timing, AudioContext, playback path는 변경하지 않았다.
+
+### 판단
+현재 샘플은 짧은 mono WAV이며 Web Audio에서는 파일을 fetch한 뒤 `decodeAudioData()`로 AudioBuffer를 만드는 구조다. 따라서 이번 변경은 **음질 변경이 아니라 준비시간 단축 실험**이다.
+
+### 주의
+동시 decode가 모든 모바일 기기에서 항상 더 빠르다고 단정하지 않는다. 실제 iPhone에서 기존 버전과 비교한다. 만약 CPU/decode 경쟁으로 오히려 느려지면 3개/4개 단위의 제한 동시성으로 되돌린다.
+
+### 다음 측정
+- iPhone Safari/Chrome에서 0/10 → 10/10까지 걸리는 시간 비교
+- 첫 코드 재생까지의 체감 지연 비교
+- 10개 병렬 로딩 중 스크롤/터치 UI 반응성 확인
