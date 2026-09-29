@@ -9,7 +9,6 @@ const BASE = import.meta.env.BASE_URL.endsWith('/')
   : `${import.meta.env.BASE_URL}/`;
 const SAMPLE_PATH = `${BASE}samples/guitar`;
 
-const PRIORITY_MIDIS = [40, 52, 64];
 const sampleCache = new Map<number, AudioBuffer>();
 const pendingLoads = new Map<number, Promise<AudioBuffer | null>>();
 
