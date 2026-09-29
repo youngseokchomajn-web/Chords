@@ -128,13 +128,14 @@ async function loadSample(sampleMidi: number, file: string): Promise<AudioBuffer
 }
 
 export async function preloadSamples(): Promise<void> {
-  const anchors = SAMPLES.filter(([m]) => PRIORITY_MIDIS.includes(m));
-  await Promise.allSettled(anchors.map(([m, f]) => loadSample(m, f)));
-
-  const remaining = SAMPLES.filter(([m]) => !PRIORITY_MIDIS.includes(m));
-  for (const [m, f] of remaining) {
-    if (!sampleCache.has(m)) await loadSample(m, f);
-  }
+  // Fetch/decode all small mono guitar samples concurrently.
+  // The previous implementation loaded 3 anchors first and then decoded the
+  // remaining 7 sequentially, which made the "ready 5/10" phase unnecessarily long.
+  // Keep the priority list for future UI/selection decisions, but do not serialize
+  // the remaining samples. The playback path itself remains unchanged.
+  await Promise.allSettled(
+    SAMPLES.map(([m, f]) => loadSample(m, f)),
+  );
 }
 
 if (typeof window !== 'undefined') {
