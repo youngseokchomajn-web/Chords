@@ -130,8 +130,6 @@ export async function preloadSamples(): Promise<void> {
   // Fetch/decode all small mono guitar samples concurrently.
   // The previous implementation loaded 3 anchors first and then decoded the
   // remaining 7 sequentially, which made the "ready 5/10" phase unnecessarily long.
-  // Keep the priority list for future UI/selection decisions, but do not serialize
-  // the remaining samples. The playback path itself remains unchanged.
   await Promise.allSettled(
     SAMPLES.map(([m, f]) => loadSample(m, f)),
   );
