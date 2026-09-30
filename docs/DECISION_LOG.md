@@ -424,3 +424,21 @@ UI에서 `🎸 마틴 어쿠스틱 준비됨 (5/10)` 상태가 오래 유지되�
 - 10개 샘플 동시 fetch/decode 최적화는 유지한다.
 - 우선순위는 **첫 재생 음질을 보장한 뒤 대기시간을 줄이는 것**으로 확정한다.
 - 향후에는 로딩 중 상태를 명확히 보여주고, 별도의 최소 샘플 세트를 설계해도 실제 대표 코드 음질이 보장되는 경우에만 readiness threshold를 낮춘다.
+
+
+## 2026-09-30 — Diatonic 1–7 및 리듬 1차 점검
+
+### C major 기준 코드
+- I C: x-3-2-0-1-0 — 일반적인 open C, 유지.
+- ii Dm: x-x-0-2-3-1 — 일반적인 open Dm, 유지.
+- iii Em: 0-2-2-0-0-0 — 일반적인 open Em, 유지.
+- IV F: 1-3-3-2-1-1 — 일반적인 full barre F, 유지.
+- V G: 3-2-0-0-0-3 — 일반적인 open G 계열, 유지.
+- vi Am: x-0-2-2-1-0 — 일반적인 open Am, 유지.
+- vii° Bdim: 기존 x-2-3-4-3-x는 유효한 Bdim voicing이지만 B-F-B-D의 4음 구성으로 고음역 F가 빠져 상대적으로 얇게 들릴 수 있었다. x-2-0-4-3-1(B-D-B-D-F)로 변경해 같은 Bdim triad를 유지하면서 상단 F를 추가했다. 공개 기타 코드 자료에도 이 형태가 Bdim voicing으로 제시된다. citeturn1search0turn1search2
+
+### 리듬
+- 기존 4 BEAT는 4개 stroke가 half-beat 간격으로만 배치되어 실제 4/4 한 마디의 앞 2박만 채우고 뒤 2박이 비었다.
+- 4 BEAT를 8 subdivision: D . D . D . D . 로 수정.
+- 8 BEAT 계열 3개를 추가해 총 5개 패턴으로 확장.
+- BPM/chord duration 구조는 유지하고 rhythm pattern만 수정했다.
