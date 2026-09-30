@@ -8,7 +8,7 @@ import { getChordDiagnostic, ChordDiagnostic } from './audio/sampleSelector';
 const KEYS: NoteName[] = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 const MAJOR_SCALE_OFFSETS = [0, 2, 4, 5, 7, 9, 11];
 const DEGREE_QUALITIES = ['', 'm', 'm', '', '', 'm', 'dim'];
-const MIN_PLAYABLE_SAMPLES = 3;
+
 
 const BENCHMARK_CHORDS = [
   { label: 'C Major', key: 'C' as NoteName, degree: 1 },
@@ -214,7 +214,7 @@ export const App: React.FC = () => {
             <span>
               {sampleStats.loaded >= sampleStats.total ? (
                 <strong style={{ color: '#2e7d32' }}>🎸 마틴 어쿠스틱 사운드 준비 완료</strong>
-              ) : sampleStats.loaded >= MIN_PLAYABLE_SAMPLES ? (
+              ) : sampleStats.loaded >= sampleStats.total ? (
                 <strong style={{ color: '#0277bd' }}>🎸 마틴 어쿠스틱 사용 가능 ({sampleStats.loaded}/{sampleStats.total})</strong>
               ) : (
                 <span style={{ color: '#e65100' }}>⏳ 어쿠스틱 샘플 준비 중 ({sampleStats.loaded}/{sampleStats.total})</span>
@@ -353,7 +353,7 @@ export const App: React.FC = () => {
           <h2>RAW SAMPLES</h2>
           <div className="progression-grid">
             {SAMPLES.map(([sampleMidi, file]) => (
-              <button key={sampleMidi} onClick={() => playRawSample(sampleMidi)} disabled={sampleStats.loaded < MIN_PLAYABLE_SAMPLES}>
+              <button key={sampleMidi} onClick={() => playRawSample(sampleMidi)} disabled={sampleStats.loaded < sampleStats.total}>
                 {file.replace(/^MartinGM2_\d+_+/, '').replace(/_1\.wav$/, '').replace(/_/g, ' ')}
               </button>
             ))}
@@ -390,7 +390,7 @@ export const App: React.FC = () => {
         <section>
           <h2>PROGRESSION</h2>
           <div className="progression-grid">{PROGRESSIONS.map(progression => (
-            <button key={progression.label} disabled={sampleStats.loaded < MIN_PLAYABLE_SAMPLES}
+            <button key={progression.label} disabled={sampleStats.loaded < sampleStats.total}
             onClick={() => playProgression(progression.degrees)}>{progression.label}</button>
           ))}</div>
         </section>
