@@ -442,3 +442,16 @@ UI에서 `🎸 마틴 어쿠스틱 준비됨 (5/10)` 상태가 오래 유지되�
 - 4 BEAT를 8 subdivision: D . D . D . D . 로 수정.
 - 8 BEAT 계열 3개를 추가해 총 5개 패턴으로 확장.
 - BPM/chord duration 구조는 유지하고 rhythm pattern만 수정했다.
+
+
+## 2026-09-30 — Steel-string sample 후보 조사
+
+- 현재 Martin 샘플을 즉시 교체하지 않는다. 현재 음질을 기준선으로 유지한다.
+- FreePats의 FSS Steel-String Acoustic Guitar를 후속 A/B 후보로 확인했다. FreePats는 FS Seagull Steel String Acoustic Guitar 녹음을 기반으로 한 SFZ+WAV 뱅크를 제공하며, 13 MiB best-quality 패키지와 2.7 MiB small 패키지가 있다. 라이선스는 GPLv3-or-later + FreePats special exception으로 명시되어 있다.
+- 2026년 공개 브라우저 프로젝트 SonicViz도 같은 FSS Steel-String Acoustic Guitar 뱅크의 8-file subset을 사용한다고 문서화하고 있어, 현재 Chords와 같은 브라우저 로컬 sampled-guitar 구조에서 사용할 수 있는 후보라는 참고 근거가 된다.
+- 단, 다른 프로젝트가 사용했다는 사실은 Chords에 그대로 사용해도 된다는 법적 판단을 의미하지 않는다. 실제 배포 시에는 원본 라이선스/exception 전문을 다시 확인한다.
+- 후속 A/B에서는 sample bank만 교체하고 voicing, gain, strum speed, selector는 고정한다.
+
+Sources:
+- https://freepats.zenvoid.org/Guitar/steel-acoustic-guitar.html
+- https://github.com/sonicviz/sonicviz-webmcp
