@@ -216,8 +216,6 @@ export const App: React.FC = () => {
             <span>
               {sampleStats.loaded >= sampleStats.total ? (
                 <strong style={{ color: '#2e7d32' }}>🎸 마틴 어쿠스틱 사운드 준비 완료</strong>
-              ) : sampleStats.loaded >= sampleStats.total ? (
-                <strong style={{ color: '#0277bd' }}>🎸 마틴 어쿠스틱 사용 가능 ({sampleStats.loaded}/{sampleStats.total})</strong>
               ) : (
                 <span style={{ color: '#e65100' }}>⏳ 어쿠스틱 샘플 준비 중 ({sampleStats.loaded}/{sampleStats.total})</span>
               )}
