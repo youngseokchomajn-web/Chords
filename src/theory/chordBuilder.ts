@@ -41,7 +41,6 @@ export const CHORD_LIBRARY: Record<string, GuitarVoicing> = {
 
   // B
   'B_major': { baseFret: 2, frets: [-1, 2, 4, 4, 4, 2], barres: [{ fret: 2, fromString: 5, toString: 1 }] },
-  'B_dim':   { baseFret: 1, frets: [-1, 2, 0, 4, 3, 1] },
   'B_minor': { baseFret: 2, frets: [-1, 2, 4, 4, 3, 2], barres: [{ fret: 2, fromString: 5, toString: 1 }] },
   'B_7':     { baseFret: 1, frets: [-1, 2, 1, 2, 0, 2], fingers: [0, 2, 1, 3, 0, 4] },
   'B_sus4':  { baseFret: 2, frets: [-1, 2, 4, 4, 5, 2], barres: [{ fret: 2, fromString: 5, toString: 1 }] }
@@ -60,15 +59,27 @@ function generateBarreVoicing(root: NoteName, quality: ChordQuality): GuitarVoic
   // A is chromatic index 9
   const aRootFret = (rootIndex - 9 + 12) % 12;
 
-  // Diminished triads use a dedicated movable A-shape.
-  // Shape: x-f-f+1-f+2-f+1-x = 1-b3-b5 on strings 5-2.
-  // This must be handled before the generic CAGED switch so it never
-  // falls through to the D-major fallback.
+  // Diminished triads need their own voicing; never let them fall
+  // through to the D-major fallback.
+  //
+  // For the major-key vii° chords used by the app, the previous
+  // x-f-f+1-f+2-f+1-x shape could put the chord center noticeably
+  // below the vi chord (most clearly in B major: A#dim vs G#m).
+  // Use a compact E-shape + octave root for most leading-tone dim
+  // chords, while E° keeps the lower A-shape. All shapes remain 1-b3-b5.
   if (quality === 'dim') {
-    const f = aRootFret === 0 ? 12 : aRootFret;
+    if (normRoot === 'E') {
+      const f = aRootFret === 0 ? 12 : aRootFret;
+      return {
+        baseFret: f,
+        frets: [-1, f, f + 1, f + 2, f + 1, -1],
+      };
+    }
+
+    const f = eRootFret === 0 ? 12 : eRootFret;
     return {
       baseFret: f,
-      frets: [-1, f, f + 1, f + 2, f + 1, -1],
+      frets: [f, f + 1, f + 2, f, -1, f],
     };
   }
 
