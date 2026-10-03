@@ -101,6 +101,7 @@ export const App: React.FC = () => {
   // 5. Save & Share (P4)
   const [savedList, setSavedList] = useState<StoredProgression[]>([]);
   const [showSavedDrawer, setShowSavedDrawer] = useState<boolean>(false);
+  const [shareModalUrl, setShareModalUrl] = useState<string | null>(null);
   const [feedbackMsg, setFeedbackMsg] = useState<string>('');
 
   // 6. Diagnostics & Audio Loading
@@ -489,6 +490,28 @@ export const App: React.FC = () => {
     setSavedList(updated);
   };
 
+  const fallbackCopy = (text: string) => {
+    try {
+      const el = document.createElement('textarea');
+      el.value = text;
+      el.style.position = 'fixed';
+      el.style.top = '0';
+      el.style.left = '-9999px';
+      document.body.appendChild(el);
+      el.focus();
+      el.select();
+      const success = document.execCommand('copy');
+      document.body.removeChild(el);
+      if (success) {
+        showFeedback('공유 링크가 클립보드에 복사되었습니다!');
+      } else {
+        showFeedback('링크 창의 주소를 직접 복사하세요');
+      }
+    } catch {
+      showFeedback('링크 창의 주소를 직접 복사하세요');
+    }
+  };
+
   const handleShareLink = () => {
     const url = buildShareUrl({
       key,
@@ -499,14 +522,16 @@ export const App: React.FC = () => {
       capo
     });
 
-    if (navigator.clipboard) {
+    setShareModalUrl(url);
+
+    if (navigator.clipboard && window.isSecureContext) {
       navigator.clipboard.writeText(url).then(() => {
         showFeedback('공유 링크가 클립보드에 복사되었습니다!');
       }).catch(() => {
-        window.prompt('공유 링크 주소:', url);
+        fallbackCopy(url);
       });
     } else {
-      window.prompt('공유 링크 주소:', url);
+      fallbackCopy(url);
     }
   };
 
@@ -626,6 +651,66 @@ export const App: React.FC = () => {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Share Link Modal (P4) */}
+        {shareModalUrl && (
+          <div style={{
+            background: '#fff',
+            border: '2px solid #1a73e8',
+            borderRadius: '12px',
+            padding: '14px',
+            marginBottom: '16px',
+            boxShadow: '0 4px 16px rgba(26, 115, 232, 0.15)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <strong style={{ fontSize: '14px', color: '#1a73e8' }}>🔗 코드 진행 공유 링크</strong>
+              <button
+                onClick={() => setShareModalUrl(null)}
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '16px' }}
+              >
+                ✕
+              </button>
+            </div>
+            <p style={{ fontSize: '11px', color: '#666', margin: '0 0 8px' }}>
+              아래 링크를 복사하면 현재 Key, 진행, BPM, 리듬, 카포 상태가 그대로 열립니다:
+            </p>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <input
+                type="text"
+                readOnly
+                value={shareModalUrl}
+                onClick={e => (e.target as HTMLInputElement).select()}
+                style={{
+                  flex: 1,
+                  padding: '8px 10px',
+                  borderRadius: '6px',
+                  border: '1px solid #ccc',
+                  fontSize: '12px',
+                  background: '#f9f9fb',
+                  fontFamily: 'monospace'
+                }}
+              />
+              <button
+                onClick={() => {
+                  fallbackCopy(shareModalUrl);
+                  showFeedback('링크가 복사되었습니다!');
+                }}
+                style={{
+                  background: '#1a73e8',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '8px 14px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                복사
+              </button>
+            </div>
           </div>
         )}
 
