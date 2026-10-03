@@ -455,3 +455,25 @@ UI에서 `🎸 마틴 어쿠스틱 준비됨 (5/10)` 상태가 오래 유지되�
 Sources:
 - https://freepats.zenvoid.org/Guitar/steel-acoustic-guitar.html
 - https://github.com/sonicviz/sonicviz-webmcp
+
+## 2026-10-03 — CHORDS V2 핵심 기능 전면 구현 완료 (P1~P6)
+
+### 구현 내용
+1. **P1. Progression Editor & Transport**:
+   - 사용자가 직접 코드를 추가, 개별 삭제, 전체 초기화할 수 있는 진행 편집기 구축.
+   - 즉시 정지(`Stop`) 및 세대 토큰(generation token) 기반 무한 반복(`Loop`) 컨트롤 구현 (`PlaybackEngine.ts`).
+2. **P2. Playback UX**:
+   - `NOW PLAYING` 및 `NEXT` 코드 실시간 표시 배너 및 4비트 펄스 인디케이터 적용.
+3. **P3. Multi-Voicing System**:
+   - 코드별 Open, Barre(E-shape/A-shape), Alternative 보이싱 선택 및 지판(Fretboard) 시각화 연동.
+4. **P4. Save & URL Share**:
+   - localStorage 기반 진행 저장/불러오기/삭제 기능.
+   - URL 쿼리 파라미터(`?k=...&p=...`) 기반 상태 공유 및 자동 복원 기능.
+5. **P5. Music Theory Expansion**:
+   - Natural Minor Key 다이아토닉 코드(i~vii°) 계산 지원.
+   - 확장 코드(7, maj7, m7, sus2, sus4, add9, dim, aug) 지원.
+6. **P6. Transpose & Capo**:
+   - 반음(semitone) 단위 조옮김 및 카포(0~7fr) 실음 피치 반영.
+7. **검증**:
+   - `tests/v2_features.test.ts` 단위 테스트 작성 및 전 항목 통과 (`npm test`).
+   - TypeScript 컴파일 및 Vite 프로덕션 빌드 무결성 검증 완료 (`npm run build`).
