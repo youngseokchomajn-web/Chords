@@ -4,6 +4,8 @@ import { StrumOptions } from '../types/audio';
 import { selectSample } from './sampleSelector';
 import { SAMPLES } from './sampleCatalog';
 
+export { SAMPLES } from './sampleCatalog';
+
 const BASE = import.meta.env.BASE_URL.endsWith('/')
   ? import.meta.env.BASE_URL
   : `${import.meta.env.BASE_URL}/`;
