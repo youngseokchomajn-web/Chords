@@ -60,6 +60,18 @@ function generateBarreVoicing(root: NoteName, quality: ChordQuality): GuitarVoic
   // A is chromatic index 9
   const aRootFret = (rootIndex - 9 + 12) % 12;
 
+  // Diminished triads use a dedicated movable A-shape.
+  // Shape: x-f-f+1-f+2-f+1-x = 1-b3-b5 on strings 5-2.
+  // This must be handled before the generic CAGED switch so it never
+  // falls through to the D-major fallback.
+  if (quality === 'dim') {
+    const f = aRootFret === 0 ? 12 : aRootFret;
+    return {
+      baseFret: f,
+      frets: [-1, f, f + 1, f + 2, f + 1, -1],
+    };
+  }
+
   // Prefer the shape that sits lower on the fretboard (between fret 1 and 7)
   const useAshape = (aRootFret > 0 && aRootFret <= 6) || eRootFret > 7;
 
