@@ -394,3 +394,8 @@ https://youngseokchomajn-web.github.io/Chords/
 Vite의 `base`는 저장소 이름에 맞춰 `/Chords/`로 설정한다.
 
 따라서 코드가 완성될수록 별도의 서버 작업 없이 GitHub에 push하는 것만으로 웹페이지가 자동 업데이트되는 구조를 사용한다.
+
+
+## 개발 계획
+
+현재 구현 상태를 기준으로 한 다음 개발 단계는 [`DEVELOPMENT_PLAN.md`](./DEVELOPMENT_PLAN.md)에 정리해두었다.
