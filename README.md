@@ -85,145 +85,110 @@ C  -  G  -  Am  -  F
 
 ## 4. 개발 단계
 
-### Phase 0 — 실행 가능한 최소 골격
-목표: 브라우저에서 화면이 뜨고 모바일에서도 터치 가능.
+### Phase 0 — 현재 MVP 안정화
 
-- Vite 기반 정적 웹앱
-- 모바일 반응형 레이아웃
-- 단일 페이지
-- Key / Chord / Progression / Current UI 구현
-- CSS는 단순하게 유지
-- 서버/DB/로그인 없음
+현재 구현된 핵심 기능을 깨지 않게 유지하면서 실제 모바일 사용성을 검증한다.
 
-완료 기준:
-- 모바일 Chrome에서 화면이 정상 표시됨
-- 모든 주요 버튼이 터치하기 쉬움
+현재 구현:
+- Major Key / diatonic chord
+- preset progression
+- 실제 기타 샘플 playback
+- BPM
+- 5개 기본 rhythm
+- 재생 중 현재 chord 표시
+- GitHub Pages 자동 배포
 
-### Phase 1 — 음악 데이터 / Key 로직
-목표: Key 하나를 바꾸면 코드가 정확히 바뀌도록 함.
+검증 기준:
+- C / D / G Key에서 대표 progression 정상 재생
+- diminished 포함 7개 diatonic chord 정상 재생
+- iPhone Safari / Chrome에서 첫 터치부터 소리
+- 빠른 입력에도 재생 상태가 꼬이지 않음
+- 320px 이상 화면에서 UI가 깨지지 않음
 
-데이터:
-- chromatic notes
-- major scale
-- diatonic triads
-- degree → chord 변환
+### Phase 1 — 직접 진행 편집 + Transport
+
+목표: 미리 정해진 progression이 아니라 사용자가 직접 원하는 진행을 만든다.
 
 예:
-- C → C Dm Em F G Am Bdim
-- D → D Em F#m G A Bm C#dim
-- G → G Am Bm C D Em F#dim
-
-대표 진행:
-- 1-5-6-4
-- 6-4-1-5
-- 1-4-5
-- 1-6-4-5
-- 1-5-4
-- 6-5-4-5
-
-완료 기준:
-- Key 변경 시 모든 chord / progression 표시가 즉시 갱신됨
-- 동일한 숫자 진행이 모든 Major Key에서 올바른 코드로 변환됨
-
-### Phase 2 — 기타 사운드 엔진
-목표: '코드를 보여주는 앱'이 아니라 '기타로 들어보는 앱'이 됨.
-
-우선순위:
-1. Web Audio API 기반 기타 계열 사운드
-2. 실제 기타처럼 들리는 짧은 스트럼
-3. 저음 → 고음 순서의 시간차
-4. 각 줄의 음량/감쇠 차이
-5. 코드 전환 시 자연스러운 간격
-
-초기 구현에서는 외부 샘플 파일에 의존하지 않고 브라우저에서 생성 가능한 방식부터 검증한다.
-Karplus-Strong 계열 물리 모델링은 기타다운 질감을 만드는 후보로 검토한다. 실제 기타 샘플이 더 빠르고 품질이 좋다면 이후 교체 가능하게 Audio Engine 인터페이스를 분리한다.
-
-완료 기준:
-- C 버튼을 누르면 C 기타 코드가 들림
-- 1-5-6-4를 누르면 C-G-Am-F가 순서대로 들림
-- 피아노처럼 동시에 모든 음이 시작되는 느낌이 아니라 스트럼 느낌이 남음
-
-### Phase 3 — 모바일 오디오 안정화
-목표: iPhone / Android에서 첫 터치부터 안정적으로 소리가 남.
-
-필수:
-- AudioContext lazy initialization
-- 첫 사용자 gesture에서 resume()
-- suspended 상태 재확인
-- 오디오 오류가 UI를 멈추지 않도록 예외 처리
-
-테스트:
-- iOS Safari
-- iOS Chrome
-- Android Chrome
-- 데스크톱 Chrome
-
-완료 기준:
-- 앱을 새로 열고 첫 코드 버튼을 눌렀을 때 바로 소리가 남
-- 첫 버튼 이후에도 반복 재생 가능
-- 화면 전환/백그라운드 복귀 후 가능한 범위에서 오디오 재개
-
-### Phase 4 — 실제 사용 흐름 완성
-목표: '생각난 진행을 5초 안에 들어본다'는 핵심 경험 검증.
-
-사용 흐름:
-1. 앱 실행
-2. Key 선택
-3. 코드 또는 진행 선택
-4. 바로 소리
-5. Current에서 실제 코드 확인
-
-추가:
-- 재생 중 현재 chord 강조
-- 진행 종료 후 자동 정지
-- 재생 중 다시 누르면 재생 상태를 명확히 처리
-- 과도한 애니메이션 금지
-
-완료 기준:
-- 처음 사용하는 사람이 별도 설명 없이 핵심 기능을 사용할 수 있음
-- 코드 하나 또는 대표 진행 하나를 5초 이내에 들을 수 있음
-
-## 5. P0 이후 개발
-
-### P1 — 작곡 보조 기능
-핵심 MVP가 안정화된 뒤 추가.
-
-- BPM
-- 스트럼 속도
-- 진행 직접 조합
-- 코드 추가 / 삭제
-- 순서 변경
-- 반복 재생
-- 재생 중 코드별 진행 표시
-
-직접 조합 UI 예:
 ```
 [C] [G] [Am] [F]
- + Add chord
+[+ 코드]
 ```
 
-처음부터 드래그앤드롭 편집기를 만들지 않는다. 모바일에서 가장 단순한 방식부터 검증한다.
+필수:
+- 코드 추가
+- 개별 코드 삭제
+- 전체 초기화
+- 현재 순서 표시
+- 직접 만든 progression Play
+- Stop
+- Loop on/off
 
-### P2 — 기타 중심 기능
-사용자가 실제로 필요하다는 근거가 생긴 뒤 추가.
+처음에는 드래그앤드롭을 만들지 않는다. 모바일에서 단순한 추가/삭제 방식부터 검증한다.
 
-- 기타 보이싱 선택
-- 오픈 코드 / 다른 포지션
-- 카포
-- 코드 운지 표시
-- 스트럼 패턴
-- 진행 저장 / 공유
+완료 기준:
+> 원하는 코드를 직접 조합하고 Play/Stop/Loop로 반복해서 들을 수 있다.
 
-### P3 — 확장 기능 후보
-초기 제품 방향을 검증한 이후에만 검토.
+### Phase 2 — 재생 UX 완성
 
-- 7th / maj7 / sus / add9 등 확장 코드
-- 마이너 Key
-- 템포/박자 세분화
-- 음색 선택
-- MIDI / 오디오 export
+현재 기능을 음악적으로 더 자연스럽게 만든다.
 
-AI 작곡 기능은 핵심 제품 검증 전에는 넣지 않는다.
+- 현재 / 다음 코드 표시
+- 박자 진행 표시
+- Loop 경계 자연스럽게 연결
+- BPM 조절 UX 개선
+- 기본 rhythm 품질 개선
+- 필요한 경우 Tap Tempo
+- 필요한 경우 count-in
+
+리듬 종류를 무작정 늘리지 않는다.
+
+### Phase 3 — 기타 보이싱
+
+- Open / Barre / Alternative voicing
+- chord diagram / fretboard
+- 보이싱별 실제 기타 playback
+- progression 안에서 chord별 voicing 선택
+
+자동 생성 보이싱은 interval / root / mute / 실제 음을 검증한다.
+
+### Phase 4 — 저장 / 공유
+
+서버 없이 먼저 구현한다.
+
+- local save
+- progression 불러오기
+- URL 기반 progression 공유
+- key / BPM / rhythm도 공유 데이터에 포함
+
+### Phase 5 — 음악 이론 확장
+
+필요성이 확인된 뒤:
+- Minor Key
+- 7 / maj7 / m7
+- sus2 / sus4
+- add9
+- m7b5 / dim / aug
+- transpose
+
+### Phase 6 — 선택적 확장
+
+수요가 확인된 경우에만:
+- Capo
+- alternate tuning
+- metronome
+- count-in
+- arpeggio
+- MIDI / audio export
+- progression image export
+
+당분간 개발하지 않음:
+- AI 작곡
+- AI 코드 추천
+- 로그인 / 서버 / DB
+- 소셜 / 커뮤니티
+- 멀티트랙 / DAW 기능
+- 광고
 
 ## 6. 코드 구조 계획
 
