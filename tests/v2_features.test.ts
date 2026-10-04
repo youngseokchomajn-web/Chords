@@ -97,4 +97,27 @@ assert.strictEqual(parsed.items?.[2].chordName, 'Am');
 assert.strictEqual(parsed.items?.[3].chordName, 'F');
 console.log('  ✓ URL Share round-trip verified');
 
+// 5. Money Chords & Beginner Logic
+console.log('\nTest 5: Money Chords & Beginner Logic');
+import { MONEY_CHORDS, buildProgressionFromDegrees, getDifficultyBadge } from '../src/data/moneyChords.ts';
+assert.strictEqual(MONEY_CHORDS.length, 6, 'Should have 6 curated money chords');
+
+// Test 1-5-6-4 in C Key vs G Key
+const cPop = buildProgressionFromDegrees('C', [1, 5, 6, 4]);
+assert.deepStrictEqual(cPop.map(c => c.chordName), ['C', 'G', 'Am', 'F']);
+const cDiff = getDifficultyBadge(cPop.map(c => c.chordName));
+assert.strictEqual(cDiff.isEasy, false, 'C Key 1-5-6-4 has F barre chord');
+
+const gPop = buildProgressionFromDegrees('G', [1, 5, 6, 4]);
+assert.deepStrictEqual(gPop.map(c => c.chordName), ['G', 'D', 'Em', 'C']);
+const gDiff = getDifficultyBadge(gPop.map(c => c.chordName));
+assert.strictEqual(gDiff.isEasy, true, 'G Key 1-5-6-4 is easy open chords without F');
+
+// Royal road in C
+const cRoyal = buildProgressionFromDegrees('C', [4, 5, 3, 6]);
+assert.deepStrictEqual(cRoyal.map(c => c.chordName), ['F', 'G', 'Em', 'Am']);
+
+console.log('  ✓ Money Chords progression builder and difficulty detection verified');
+
 console.log('\n🎉 ALL V2 FEATURE TESTS PASSED SUCCESSFULLY!\n');
+

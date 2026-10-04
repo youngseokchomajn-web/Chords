@@ -26,6 +26,8 @@ import {
   buildShareUrl,
   parseShareUrl
 } from './utils/storage';
+import { SimpleModeView } from './components/SimpleModeView';
+import { MONEY_CHORDS, MoneyChordPreset, buildProgressionFromDegrees } from './data/moneyChords';
 
 const KEYS: NoteName[] = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 
@@ -60,6 +62,10 @@ const EXTENDED_QUALITIES: { label: string; value: ChordQuality }[] = [
 ];
 
 export const App: React.FC = () => {
+  // 0. App Mode (Simple vs Studio)
+  const [appMode, setAppMode] = useState<'simple' | 'studio'>('simple');
+  const [activePresetId, setActivePresetId] = useState<string | null>(null);
+
   // 1. Key & Mode
   const [key, setKey] = useState<NoteName>('C');
   const [isMinorKey, setIsMinorKey] = useState<boolean>(false);
@@ -124,6 +130,7 @@ export const App: React.FC = () => {
   useEffect(() => {
     const parsed = parseShareUrl();
     if (parsed) {
+      setAppMode('studio');
       if (parsed.key) setKey(parsed.key);
       if (parsed.isMinor !== undefined) setIsMinorKey(parsed.isMinor);
       if (parsed.bpm) setBpm(parsed.bpm);
@@ -356,6 +363,7 @@ export const App: React.FC = () => {
         },
         onFinish: () => {
           setIsPlaying(false);
+          setActivePresetId(null);
           setPlaybackPos({
             currentIndex: -1,
             currentChord: null,
@@ -378,6 +386,7 @@ export const App: React.FC = () => {
   const handleStop = () => {
     PlaybackEngine.stop();
     setIsPlaying(false);
+    setActivePresetId(null);
     setPlaybackPos({
       currentIndex: -1,
       currentChord: null,
@@ -391,6 +400,61 @@ export const App: React.FC = () => {
     setIsLooping(nextLoop);
     PlaybackEngine.setLoop(nextLoop);
     showFeedback(nextLoop ? '반복 재생(Loop) 켜짐' : '반복 재생(Loop) 꺼짐');
+  };
+
+  // -------------------------------------------------------------
+  // Handlers: Simple Mode (Beginner friendly money chords)
+  // -------------------------------------------------------------
+  const handleSelectSimpleKey = (newKey: NoteName) => {
+    setKey(newKey);
+    showFeedback(`Key: ${newKey}로 변경되었습니다`);
+    if (activePresetId) {
+      const preset = MONEY_CHORDS.find(p => p.id === activePresetId);
+      if (preset) {
+        const items = buildProgressionFromDegrees(newKey, preset.degrees, 'simple');
+        setProgression(items);
+        if (isPlaying) {
+          PlaybackEngine.stop();
+          setTimeout(() => {
+            startPlayback(items);
+          }, 40);
+        }
+      }
+    }
+  };
+
+  const handlePlaySimplePreset = (preset: MoneyChordPreset) => {
+    if (isPlaying) {
+      PlaybackEngine.stop();
+      setIsPlaying(false);
+    }
+    setActivePresetId(preset.id);
+    const items = buildProgressionFromDegrees(key, preset.degrees, 'simple');
+    setProgression(items);
+    setSelectedItemIndex(0);
+    setPreviewChord({
+      root: items[0].root,
+      quality: items[0].quality,
+      voicingType: items[0].voicingType || 'open'
+    });
+    setTimeout(() => {
+      startPlayback(items);
+    }, 40);
+  };
+
+  const handleSwitchToStudioWithItems = (items: ProgressionItem[]) => {
+    if (isPlaying) handleStop();
+    setProgression(items);
+    setSelectedItemIndex(0);
+    if (items.length > 0) {
+      setPreviewChord({
+        root: items[0].root,
+        quality: items[0].quality,
+        voicingType: items[0].voicingType || 'open'
+      });
+    }
+    setAppMode('studio');
+    showFeedback('스튜디오 모드로 전환되었습니다. 자유롭게 진행을 편집해보세요!');
   };
 
   // -------------------------------------------------------------
@@ -714,8 +778,52 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {/* 1. KEY SELECTION & SCALE MODE */}
-        <section>
+        {/* Mode Switcher: Simple vs Studio */}
+        <div className="mode-switch-container">
+          <button
+            className={`mode-switch-btn ${appMode === 'simple' ? 'active' : ''}`}
+            onClick={() => {
+              if (isPlaying) handleStop();
+              setAppMode('simple');
+            }}
+          >
+            <span>💡 심플 모드</span>
+            <span className="mode-badge">초보자 추천</span>
+          </button>
+          <button
+            className={`mode-switch-btn ${appMode === 'studio' ? 'active' : ''}`}
+            onClick={() => {
+              if (isPlaying) handleStop();
+              setAppMode('studio');
+            }}
+          >
+            <span>🎛️ 스튜디오 모드</span>
+            <span style={{ fontSize: '10px', color: '#666' }}>V2 프로</span>
+          </button>
+        </div>
+
+        {appMode === 'simple' ? (
+          <SimpleModeView
+            currentKey={key}
+            onSelectKey={handleSelectSimpleKey}
+            isPlaying={isPlaying}
+            currentPlayingIndex={playbackPos.currentIndex}
+            currentChord={playbackPos.currentChord}
+            nextChord={playbackPos.nextChord}
+            beat={playbackPos.beat}
+            bpm={bpm}
+            onSetBpm={setBpm}
+            isLooping={isLooping}
+            onToggleLoop={handleToggleLoop}
+            onPlayPreset={handlePlaySimplePreset}
+            onStop={handleStop}
+            onSwitchToStudioWithItems={handleSwitchToStudioWithItems}
+            activePresetId={activePresetId}
+          />
+        ) : (
+          <>
+            {/* 1. KEY SELECTION & SCALE MODE */}
+            <section>
           <h2>
             <span>KEY</span>
             <div className="mode-toggle-group">
@@ -1061,6 +1169,8 @@ export const App: React.FC = () => {
             </div>
           )}
         </section>
+          </>
+        )}
       </main>
     </div>
   );
