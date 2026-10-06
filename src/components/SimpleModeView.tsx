@@ -30,8 +30,7 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
   <div className="simple-mode-container">
     <section className="simple-key-panel">
       <div className="simple-key-heading">
-        <div><span className="simple-eyebrow">KEY</span><strong>{currentKey}</strong></div>
-        <span className="simple-key-caption">진행을 들을 키를 선택</span>
+        <strong>{currentKey}</strong>
       </div>
       <div className="simple-key-selector">
         {SIMPLE_KEYS.map(note => (
@@ -44,7 +43,7 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
     {isPlaying && (
       <section className="simple-player-banner">
         <div className="simple-player-main">
-          <div><span className="simple-eyebrow">NOW PLAYING</span><strong className="simple-now-chord">{currentChord || '-'}</strong></div>
+          <div><strong className="simple-now-chord">{currentChord || '-'}</strong></div>
           <div className="simple-next"><span>다음</span><strong>{nextChord || '-'}</strong></div>
         </div>
         <div className="simple-progress-row">
@@ -60,8 +59,7 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
 
     <section className="simple-section simple-presets">
       <div className="simple-section-heading">
-        <div><span className="simple-eyebrow">PROGRESSIONS</span><h3>바로 들어보기</h3></div>
-        <span className="simple-section-note">{currentKey} key</span>
+        <h3>바로 들어보기</h3>
       </div>
       <div className="money-card-list">
         {MONEY_CHORDS.map(preset => {
@@ -72,7 +70,6 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
               onClick={() => isThisPlaying ? onStop() : onPlayPreset(preset)}>
               <span className="money-card-main">
                 <span className="money-card-title-row"><strong>{preset.title}</strong><span>{preset.degreeText}</span></span>
-                <span className="money-mood">{preset.mood}</span>
                 <span className="money-chords-row">
                   {items.map((it, idx) => <React.Fragment key={idx}>
                     <span className={`simple-chord-chip ${isThisPlaying && currentPlayingIndex === idx ? 'active' : ''}`}>{it.chordName}</span>
