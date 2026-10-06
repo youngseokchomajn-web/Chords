@@ -787,8 +787,7 @@ export const App: React.FC = () => {
               setAppMode('simple');
             }}
           >
-            <span>💡 심플 모드</span>
-            <span className="mode-badge">초보자 추천</span>
+            <span>심플 모드</span>
           </button>
           <button
             className={`mode-switch-btn ${appMode === 'studio' ? 'active' : ''}`}
@@ -797,8 +796,7 @@ export const App: React.FC = () => {
               setAppMode('studio');
             }}
           >
-            <span>🎛️ 스튜디오 모드</span>
-            <span style={{ fontSize: '10px', color: '#666' }}>V2 프로</span>
+            <span>스튜디오 모드</span>
           </button>
         </div>
 
