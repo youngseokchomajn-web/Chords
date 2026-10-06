@@ -225,6 +225,30 @@ export class GuitarSoundEngine {
     this.activeVoices = [];
   }
 
+  /**
+   * Musical chord change: let the previous strum decay briefly instead of
+   * hard-cutting it. This is intentionally separate from stopAll(), which is
+   * still used for an explicit Stop / restart.
+   */
+  public static releaseAll(fadeTime = 0.11): void {
+    const ctx = audioContextManager.getContext();
+    const now = ctx.currentTime;
+    const safeFade = Math.max(0.04, Math.min(0.25, fadeTime));
+
+    this.activeVoices.forEach(voice => {
+      try {
+        voice.gainNode.gain.cancelScheduledValues(now);
+        voice.gainNode.gain.setValueAtTime(Math.max(0.0001, voice.gainNode.gain.value), now);
+        voice.gainNode.gain.linearRampToValueAtTime(0.0001, now + safeFade);
+        if (voice.sourceNode) {
+          voice.sourceNode.stop(now + safeFade + 0.005);
+        }
+      } catch {
+        // Voice already stopped.
+      }
+    });
+  }
+
   private static triggerVoice(
     buffer: AudioBuffer,
     sampleMidi: number,
