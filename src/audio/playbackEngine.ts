@@ -83,7 +83,7 @@ export class PlaybackEngine {
     audioContextManager.unlockSync();
 
     const def = getChordDefinition(item.root, item.quality, item.voicingType);
-    const frets = this.applyCapo(def.primaryVoicing.frets, capo);
+    const frets = this.applyCapo(item.playbackVoicing?.frets ?? def.primaryVoicing.frets, capo);
     GuitarSoundEngine.strum(frets, { speedSec: 0.007, direction });
   }
 
@@ -121,7 +121,9 @@ export class PlaybackEngine {
           if (this.generation !== currentGen || !this._isPlaying) return;
 
           this._currentIndex = index;
-          GuitarSoundEngine.stopAll();
+          // Keep a short natural tail at musical chord boundaries.
+          // Explicit Stop still uses stopAll() above.
+          GuitarSoundEngine.releaseAll(0.11);
 
           events.onStep?.(index, item.chordName, nextItem ? nextItem.chordName : null);
 
