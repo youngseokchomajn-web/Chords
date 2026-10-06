@@ -1,6 +1,7 @@
 name: Deploy to GitHub Pages
 # Deploy source on every main push.
 # Deployment retriggered after Simple Mode UI updates.
+# Final redeploy after latest Simple Mode commits.
 
 on:
   push:
