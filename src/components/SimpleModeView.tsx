@@ -14,7 +14,6 @@ interface SimpleModeViewProps {
   nextChord: string | null;
   beat: number;
   bpm: number;
-  onSetBpm: (bpm: number) => void;
   isLooping: boolean;
   onToggleLoop: () => void;
   onPlayPreset: (preset: MoneyChordPreset) => void;
