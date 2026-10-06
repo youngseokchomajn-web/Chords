@@ -466,6 +466,21 @@ h2 {
   color:#ddd; font-size:11px; font-weight:800; cursor:pointer;
 }
 .simple-player-actions button.active { background:#fff; border-color:#fff; color:#111; }
+.simple-custom-play {
+  display:flex; gap:6px; margin-bottom:10px;
+}
+.simple-custom-play input {
+  flex:1; min-width:0; height:40px; padding:0 12px;
+  border:1px solid #d5d9e0; border-radius:8px; background:#fafafa;
+  color:#111; font-size:16px; font-weight:800; letter-spacing:.12em;
+  text-align:center; outline:none;
+}
+.simple-custom-play input:focus { border-color:#111; background:#fff; }
+.simple-custom-play button {
+  min-width:72px; height:40px; border:1px solid #111; border-radius:8px;
+  background:#111; color:#fff; font-size:12px; font-weight:800; cursor:pointer;
+}
+.simple-custom-play button:disabled { opacity:.4; cursor:default; }
 .money-card-list { display:flex; flex-direction:column; gap:7px; }
 .money-card {
   width:100%; display:flex; align-items:center; gap:10px; text-align:left;
