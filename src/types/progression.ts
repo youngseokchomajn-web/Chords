@@ -1,4 +1,4 @@
-import { NoteName, ChordQuality } from './music';
+import { NoteName, ChordQuality, GuitarVoicing } from './music';
 
 export type VoicingType = 'open' | 'barre' | 'alternative';
 
@@ -9,6 +9,8 @@ export interface ProgressionItem {
   quality: ChordQuality;
   degree?: number;
   voicingType?: VoicingType;
+  /** Optional playback-only voicing. Studio/storage paths can omit it. */
+  playbackVoicing?: GuitarVoicing;
 }
 
 export type PlaybackState = 'stopped' | 'playing';
