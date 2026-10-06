@@ -18,7 +18,7 @@ export interface MoneyChordPreset {
 export const MONEY_CHORDS: MoneyChordPreset[] = [
   {
     id: 'pop_4chord',
-    title: '팝의 불패 공식 (4-Chord)',
+    title: '1 - 5 - 6 - 4',
     badge: '★ 가장 인기',
     degrees: [1, 5, 6, 4],
     degreeText: '1 - 5 - 6 - 4',
@@ -28,7 +28,7 @@ export const MONEY_CHORDS: MoneyChordPreset[] = [
   },
   {
     id: 'emotional_pop',
-    title: '새벽 감성 팝',
+    title: '6 - 4 - 1 - 5',
     badge: '감성 폭발',
     degrees: [6, 4, 1, 5],
     degreeText: '6 - 4 - 1 - 5',
@@ -38,7 +38,7 @@ export const MONEY_CHORDS: MoneyChordPreset[] = [
   },
   {
     id: 'royal_road',
-    title: 'K-POP / 애니 벅참 (왕도 진행)',
+    title: '4 - 5 - 3 - 6',
     badge: '킬링 후렴',
     degrees: [4, 5, 3, 6],
     degreeText: '4 - 5 - 3 - 6',
@@ -48,7 +48,7 @@ export const MONEY_CHORDS: MoneyChordPreset[] = [
   },
   {
     id: 'canon',
-    title: '클래식 & 캐논 진행',
+    title: '1 - 5 - 6 - 3 - 4 - 1 - 4 - 5',
     badge: '힐링 & 기품',
     degrees: [1, 5, 6, 3, 4, 1, 4, 5],
     degreeText: '1 - 5 - 6 - 3 - 4 - 1 - 4 - 5',
@@ -58,7 +58,7 @@ export const MONEY_CHORDS: MoneyChordPreset[] = [
   },
   {
     id: 'doo_wop',
-    title: '레트로 50s 둘왑 발라드',
+    title: '1 - 6 - 4 - 5',
     badge: '달콤한 고백',
     degrees: [1, 6, 4, 5],
     degreeText: '1 - 6 - 4 - 5',
@@ -68,7 +68,7 @@ export const MONEY_CHORDS: MoneyChordPreset[] = [
   },
   {
     id: 'folk_3chord',
-    title: '통기타 3화음 치트키',
+    title: '1 - 4 - 5 - 1',
     badge: '초보 첫걸음',
     degrees: [1, 4, 5, 1],
     degreeText: '1 - 4 - 5 - 1',
