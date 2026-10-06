@@ -423,6 +423,30 @@ export const App: React.FC = () => {
     }
   };
 
+  const handlePlaySimpleCustom = (input: string) => {
+    const degrees = input.split('').map(Number);
+    if (degrees.length === 0 || degrees.some(d => d < 1 || d > 7)) {
+      showFeedback('1~7 숫자로 입력해주세요');
+      return;
+    }
+    if (isPlaying) {
+      PlaybackEngine.stop();
+      setIsPlaying(false);
+    }
+    setActivePresetId(null);
+    const items = buildProgressionFromDegrees(key, degrees, 'simple_custom', true);
+    setProgression(items);
+    setSelectedItemIndex(0);
+    setPreviewChord({
+      root: items[0].root,
+      quality: items[0].quality,
+      voicingType: items[0].voicingType || 'open'
+    });
+    setTimeout(() => {
+      startPlayback(items);
+    }, 40);
+  };
+
   const handlePlaySimplePreset = (preset: MoneyChordPreset) => {
     if (isPlaying) {
       PlaybackEngine.stop();
@@ -813,6 +837,7 @@ export const App: React.FC = () => {
             isLooping={isLooping}
             onToggleLoop={handleToggleLoop}
             onPlayPreset={handlePlaySimplePreset}
+            onPlayCustomDegrees={handlePlaySimpleCustom}
             onStop={handleStop}
             onSwitchToStudioWithItems={handleSwitchToStudioWithItems}
             activePresetId={activePresetId}
