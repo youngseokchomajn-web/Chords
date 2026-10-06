@@ -810,7 +810,6 @@ export const App: React.FC = () => {
             nextChord={playbackPos.nextChord}
             beat={playbackPos.beat}
             bpm={bpm}
-            onSetBpm={setBpm}
             isLooping={isLooping}
             onToggleLoop={handleToggleLoop}
             onPlayPreset={handlePlaySimplePreset}
