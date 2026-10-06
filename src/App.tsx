@@ -411,7 +411,7 @@ export const App: React.FC = () => {
     if (activePresetId) {
       const preset = MONEY_CHORDS.find(p => p.id === activePresetId);
       if (preset) {
-        const items = buildProgressionFromDegrees(newKey, preset.degrees, 'simple');
+        const items = buildProgressionFromDegrees(newKey, preset.degrees, 'simple', true);
         setProgression(items);
         if (isPlaying) {
           PlaybackEngine.stop();
@@ -429,7 +429,7 @@ export const App: React.FC = () => {
       setIsPlaying(false);
     }
     setActivePresetId(preset.id);
-    const items = buildProgressionFromDegrees(key, preset.degrees, 'simple');
+    const items = buildProgressionFromDegrees(key, preset.degrees, 'simple', true);
     setProgression(items);
     setSelectedItemIndex(0);
     setPreviewChord({
