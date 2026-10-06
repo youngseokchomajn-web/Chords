@@ -69,7 +69,7 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
             <button key={preset.id} className={`money-card ${isThisPlaying ? 'playing' : ''}`}
               onClick={() => isThisPlaying ? onStop() : onPlayPreset(preset)}>
               <span className="money-card-main">
-                <span className="money-card-title-row"><strong>{preset.title}</strong><span>{preset.degreeText}</span></span>
+                <span className="money-card-title-row"><strong>{preset.degreeText}</strong></span>
                 <span className="money-chords-row">
                   {items.map((it, idx) => <React.Fragment key={idx}>
                     <span className={`simple-chord-chip ${isThisPlaying && currentPlayingIndex === idx ? 'active' : ''}`}>{it.chordName}</span>
