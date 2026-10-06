@@ -2,6 +2,7 @@ import { NoteName } from '../types/music';
 import { getDiatonicChords } from '../theory/notes';
 import { ProgressionItem } from '../types/progression';
 import { getChordDefinition, getAvailableVoicings } from '../theory/chordBuilder';
+import { selectMoneyVoicings } from '../theory/moneyVoicing';
 
 export interface MoneyChordPreset {
   id: string;
@@ -80,10 +81,11 @@ export const MONEY_CHORDS: MoneyChordPreset[] = [
 export function buildProgressionFromDegrees(
   key: NoteName,
   degrees: number[],
-  prefix = 'simple'
+  prefix = 'simple',
+  useMoneyVoicing = false
 ): ProgressionItem[] {
   const diatonic = getDiatonicChords(key, false);
-  return degrees.map((deg, i) => {
+  const baseItems = degrees.map((deg, i) => {
     const info = diatonic[deg - 1];
     const root = info ? info.root : key;
     const quality = info ? info.quality : 'major';
@@ -99,6 +101,16 @@ export function buildProgressionFromDegrees(
       voicingType
     };
   });
+
+  if (useMoneyVoicing) {
+    const voicings = selectMoneyVoicings(baseItems);
+    return baseItems.map((item, index) => ({
+      ...item,
+      playbackVoicing: voicings[index]
+    }));
+  }
+
+  return baseItems;
 }
 
 export function getDifficultyBadge(chordNames: string[]): { text: string; isEasy: boolean } {
