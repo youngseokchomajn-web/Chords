@@ -17,6 +17,7 @@ interface SimpleModeViewProps {
   isLooping: boolean;
   onToggleLoop: () => void;
   onPlayPreset: (preset: MoneyChordPreset) => void;
+  onPlayCustomDegrees: (input: string) => void;
   onStop: () => void;
   onSwitchToStudioWithItems: (items: ProgressionItem[]) => void;
   activePresetId: string | null;
@@ -25,8 +26,15 @@ interface SimpleModeViewProps {
 export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
   currentKey, onSelectKey, isPlaying, currentPlayingIndex, currentChord, nextChord,
   beat, bpm, isLooping, onToggleLoop, onPlayPreset, onStop,
-  onSwitchToStudioWithItems, activePresetId,
-}) => (
+  onSwitchToStudioWithItems, onPlayCustomDegrees, activePresetId,
+}) => {
+  const [customInput, setCustomInput] = React.useState('154');
+
+  const handleCustomPlay = () => {
+    if (/^[1-7]+$/.test(customInput)) onPlayCustomDegrees(customInput);
+  };
+
+  return (
   <div className="simple-mode-container">
     <section className="simple-key-panel">
       <div className="simple-key-heading">
@@ -61,6 +69,19 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
       <div className="simple-section-heading">
         <h3>바로 들어보기</h3>
       </div>
+      <div className="simple-custom-play">
+        <input
+          value={customInput}
+          onChange={e => setCustomInput(e.target.value.replace(/[^1-7]/g, '').slice(0, 8))}
+          onKeyDown={e => { if (e.key === 'Enter') handleCustomPlay(); }}
+          inputMode="numeric"
+          pattern="[1-7]*"
+          aria-label="코드 진행 입력"
+          placeholder="예: 154"
+          maxLength={8}
+        />
+        <button onClick={handleCustomPlay} disabled={!customInput}>▶ 듣기</button>
+      </div>
       <div className="money-card-list">
         {MONEY_CHORDS.map(preset => {
           const items = buildProgressionFromDegrees(currentKey, preset.degrees);
@@ -89,4 +110,5 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
       더 자세히 만들기 → 스튜디오 모드
     </button>
   </div>
-);
+  );
+};
