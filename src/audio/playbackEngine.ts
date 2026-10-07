@@ -2,7 +2,7 @@ import { GuitarSoundEngine } from './guitarSynth';
 import { audioContextManager } from './audioContext';
 import { ProgressionItem } from '../types/progression';
 import { getChordDefinition } from '../theory/chordBuilder';
-import { buildChordTimeline, buildPlaybackPlan } from './playbackPlan';
+import { buildPlaybackPlan } from './playbackPlan';
 
 export { buildChordTimeline } from './playbackPlan';
 export type { ChordTimelineItem } from './playbackPlan';
