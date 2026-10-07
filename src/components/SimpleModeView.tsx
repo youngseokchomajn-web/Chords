@@ -19,13 +19,19 @@ interface SimpleModeViewProps {
   onPlayCustomDegrees: (input: string) => void;
   onStop: () => void;
   activePresetId: string | null;
+  simplePage: 'listen' | 'song';
 }
 
 const DEFAULT_SONG_TEXT = `[Intro]
+1 4 1
 
 [Pre-Chorus]
+1 4 1
+4 1 5 1
 
-[Chorus]`;
+[Chorus]
+1 4 1 5
+1 4 1 5`;
 
 const parseSongSections = (text: string) => {
   const lines = text.split(/\r?\n/);
@@ -58,7 +64,7 @@ const serializeSongSections = (sections: { title: string; lines: string[] }[]) =
 export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
   currentKey, onSelectKey, isPlaying, currentPlayingIndex, currentChord, nextChord,
   beat, bpm, isLooping, onToggleLoop, onPlayPreset, onStop,
-  onPlayCustomDegrees, activePresetId,
+  onPlayCustomDegrees, activePresetId, simplePage,
 }) => {
   const [customInput, setCustomInput] = React.useState('154');
   const [songSectionsDraft, setSongSectionsDraft] = React.useState(() => parseSongSections(DEFAULT_SONG_TEXT));
@@ -129,6 +135,8 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
 
   return (
   <div className="simple-mode-container">
+    {simplePage === 'listen' && (
+      <>
     <section className="simple-key-panel">
       <div className="simple-key-heading">
         <strong>{currentKey}</strong>
@@ -198,6 +206,23 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
       </div>
     </section>
 
+
+      </>
+    )}
+    {simplePage === 'song' && (
+      <>
+    <section className="simple-key-panel">
+      <div className="simple-key-heading">
+        <strong>{currentKey}</strong>
+      </div>
+      <div className="simple-key-selector">
+        {SIMPLE_KEYS.map(note => (
+          <button key={note} className={`simple-key-btn ${currentKey === note ? 'selected' : ''}`}
+            onClick={() => onSelectKey(note)} aria-label={`${note} key`}>{note}</button>
+        ))}
+      </div>
+    </section>
+
     <section className="simple-section song-writer-section">
       <div className="simple-section-heading">
         <h3>곡 써보기</h3>
@@ -213,7 +238,7 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
             <div className="song-section-box" key={`${section.title}-${index}`}>
               <strong>{section.title}</strong>
               <textarea
-                value={section.lines.join('\\n')}
+                value={section.lines.join('\n')}
                 onChange={e => updateSongSection(index, e.target.value)}
                 spellCheck={false}
                 aria-label={`${section.title} 코드 입력`}
@@ -229,7 +254,7 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
           spellCheck={false}
           aria-label="숫자 코드 곡 입력"
           className="song-text-editor"
-          placeholder="[Verse]\\n1546\\n\\n[Chorus]\\n1564"
+          placeholder={"[Verse]\n1546\n\n[Chorus]\n1564"}
         />
       )}
 
@@ -246,6 +271,9 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
         <button onClick={handleSongPlay} disabled={!songSections.length} className="song-play-btn">▶ 곡 전체 듣기</button>
       </div>
     </section>
+      </>
+    )}
+
 
   </div>
   );
