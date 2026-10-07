@@ -350,7 +350,6 @@ export class GuitarSoundEngine {
 
   /** Release only voices that started before the given audio-clock time. */
   public static releaseAllAt(when: number, fadeTime = 0.045): void {
-    const ctx = audioContextManager.getContext();
     const safeFade = Math.max(0.04, Math.min(0.25, fadeTime));
     this.activeVoices.forEach(voice => {
       if (voice.startTime >= when) return;
