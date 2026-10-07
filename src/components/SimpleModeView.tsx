@@ -59,7 +59,7 @@ const parseSongText = (text: string) =>
   parseSongSections(text).filter(section => section.lines.length > 0);
 
 const serializeSongSections = (sections: { title: string; lines: string[] }[]) =>
-  sections.map(section => `[${section.title}]\n${section.lines.join('\n')}`).join('\\n\\n');
+  sections.map(section => `[${section.title}]\n${section.lines.join('\n')}`).join('\n\n');
 
 export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
   currentKey, onSelectKey, isPlaying, currentPlayingIndex, currentChord, nextChord,
@@ -71,6 +71,7 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
   const [songText, setSongText] = React.useState(DEFAULT_SONG_TEXT);
   const [songInputMode, setSongInputMode] = React.useState<'boxes' | 'text'>('boxes');
   const [isSongPlaying, setIsSongPlaying] = React.useState(false);
+  const [isSongExample, setIsSongExample] = React.useState(true);
 
   const handleCustomPlay = () => {
     if (/^[1-7]+$/.test(customInput)) {
@@ -111,15 +112,24 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
   };
 
   const handleSongTextChange = (value: string) => {
+    setIsSongExample(false);
     setSongText(value);
     const parsed = parseSongSections(value);
     if (parsed.length > 0) setSongSectionsDraft(parsed);
+  };
+
+  const clearSongExample = () => {
+    if (!isSongExample) return;
+    setIsSongExample(false);
+    setSongSectionsDraft([]);
+    setSongText('');
   };
 
   const resetSong = () => {
     const sections = parseSongSections(DEFAULT_SONG_TEXT);
     setSongSectionsDraft(sections);
     setSongText(DEFAULT_SONG_TEXT);
+    setIsSongExample(true);
   };
   const sectionForIndex = (index: number) => {
     if (!isSongPlaying || index < 0) return '';
@@ -227,10 +237,12 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
       <div className="simple-section-heading">
         <h3>곡 써보기</h3>
         <div className="song-input-toggle" role="group" aria-label="입력 방식">
-          <button className={songInputMode === 'boxes' ? 'active' : ''} onClick={() => switchSongInputMode('boxes')}>박스</button>
-          <button className={songInputMode === 'text' ? 'active' : ''} onClick={() => switchSongInputMode('text')}>텍스트</button>
+          <button className={songInputMode === 'boxes' ? 'active' : ''} onClick={() => switchSongInputMode('boxes')} >구간별 입력</button>
+          <button className={songInputMode === 'text' ? 'active' : ''} onClick={() => switchSongInputMode('text')} >전체 입력</button>
         </div>
       </div>
+
+      <div className="song-example-label">예시 · 반짝반짝 작은별</div>
 
       {songInputMode === 'boxes' ? (
         <div className="song-section-boxes">
@@ -239,6 +251,7 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
               <strong>{section.title}</strong>
               <textarea
                 value={section.lines.join('\n')}
+                onFocus={clearSongExample}
                 onChange={e => updateSongSection(index, e.target.value)}
                 spellCheck={false}
                 aria-label={`${section.title} 코드 입력`}
@@ -250,6 +263,7 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
       ) : (
         <textarea
           value={songText}
+          onFocus={clearSongExample}
           onChange={e => handleSongTextChange(e.target.value)}
           spellCheck={false}
           aria-label="숫자 코드 곡 입력"
