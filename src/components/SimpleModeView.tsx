@@ -93,7 +93,7 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
     setSongSectionsDraft(prev => prev.map((section, sectionIndex) => {
       if (sectionIndex !== index) return section;
       const lines = value.split(/\r?\n/)
-        .map(line => line.replace(/[^1-7\s]/g, '').trim())
+        .map(line => line.replace(/[^1-7/\s]/g, '').trim())
         .filter(Boolean);
       return { ...section, lines };
     }));
@@ -133,7 +133,7 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
     if (index < 0) return '';
     let offset = 0;
     for (const section of songSections) {
-      const length = section.lines.reduce((sum, line) => sum + line.length, 0);
+      const length = section.lines.reduce((sum, line) => sum + line.replace(/[^1-7]/g, '').length, 0);
       if (index < offset + length) return section.title;
       offset += length;
     }
