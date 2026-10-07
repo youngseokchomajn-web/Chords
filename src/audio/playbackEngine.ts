@@ -37,15 +37,11 @@ export function buildChordTimeline(items: ProgressionItem[], chordBeats?: number
   return items.map((_, index) => {
     const durationBeats = chordBeats?.[index] ?? 4;
     const duration = Math.max(0.0001, durationBeats);
-    if (beatOffsetInBar >= 4 - 0.0001) {
-      barIndex += 1;
-      beatOffsetInBar = 0;
-    }
-
     const result = { index, barIndex, beatOffsetInBar, durationBeats: duration };
     beatOffsetInBar += duration;
 
     if (beatOffsetInBar >= 4 - 0.0001) {
+      barIndex += 1;
       beatOffsetInBar = 0;
     }
     return result;
