@@ -12,7 +12,7 @@ import {
   AvailableVoicingOption
 } from './theory/chordBuilder';
 import { PlaybackEngine, RhythmPattern } from './audio/playbackEngine';
-import { GuitarSoundEngine, subscribeLoadingProgress, SAMPLES } from './audio/guitarSynth';
+import { GuitarSoundEngine, SAMPLES } from './audio/guitarSynth';
 import { audioContextManager } from './audio/audioContext';
 import {
   getChordDiagnostic,
@@ -64,6 +64,7 @@ const EXTENDED_QUALITIES: { label: string; value: ChordQuality }[] = [
 export const App: React.FC = () => {
   // 0. App Mode (Simple vs Studio)
   const [appMode, setAppMode] = useState<'simple' | 'studio'>('simple');
+  const [simplePage, setSimplePage] = useState<'listen' | 'song'>('listen');
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
 
   // 1. Key & Mode
@@ -111,10 +112,6 @@ export const App: React.FC = () => {
   const [feedbackMsg, setFeedbackMsg] = useState<string>('');
 
   // 6. Diagnostics & Audio Loading
-  const [sampleStats, setSampleStats] = useState<{ loaded: number; total: number }>({
-    loaded: 0,
-    total: SAMPLES.length,
-  });
   const [activeDiagnostic, setActiveDiagnostic] = useState<ChordDiagnostic | null>(null);
   const [showDiagnostic, setShowDiagnostic] = useState<boolean>(false);
 
@@ -149,11 +146,7 @@ export const App: React.FC = () => {
     }
     setSavedList(loadSavedProgressions());
 
-    const unsubscribe = subscribeLoadingProgress((loaded, total) => {
-      setSampleStats({ loaded, total });
-    });
     return () => {
-      unsubscribe();
       PlaybackEngine.stop();
     };
   }, []);
@@ -615,7 +608,7 @@ export const App: React.FC = () => {
         <header>
           <div>
             <h1>CHORDS <small style={{ fontSize: '13px', fontWeight: 600, color: '#1a73e8' }}>V2</small></h1>
-            <p>떠오른 코드 진행을 5초 안에 기타로 확인하기</p>
+            
           </div>
           <div className="util-bar">
             <button className="util-btn" onClick={handleSaveCurrentProgression} title="진행 로컬 저장">
@@ -630,46 +623,26 @@ export const App: React.FC = () => {
           </div>
         </header>
 
-        {/* Audio Status & Feedback Toast */}
-        <div style={{
-          background: '#f9f9fb',
-          border: '1px solid #e1e4ea',
-          borderRadius: '10px',
-          padding: '8px 12px',
-          marginBottom: '14px',
-          fontSize: '12px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <span>
-            {sampleStats.loaded >= sampleStats.total ? (
-              <strong style={{ color: '#2e7d32' }}>🎸 마틴 어쿠스틱 엔진 준비됨</strong>
-            ) : (
-              <span style={{ color: '#e65100' }}>⏳ 어쿠스틱 샘플 로딩 중 ({sampleStats.loaded}/{sampleStats.total})</span>
-            )}
-            {feedbackMsg && <strong style={{ marginLeft: 8, color: '#111' }}>· {feedbackMsg}</strong>}
-          </span>
+        {/* Saved Progressions Drawer / Modal */}
+        <div className="simple-page-tabs" role="tablist" aria-label="CHORDS 페이지">
           <button
-            onClick={() => {
-              audioContextManager.unlockSync();
-              GuitarSoundEngine.playTestNote();
-            }}
-            style={{
-              background: '#222',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '6px',
-              padding: '3px 8px',
-              fontSize: '11px',
-              cursor: 'pointer'
-            }}
+            role="tab"
+            aria-selected={simplePage === 'listen'}
+            className={simplePage === 'listen' ? 'active' : ''}
+            onClick={() => setSimplePage('listen')}
           >
-            🔊 사운드 테스트
+            코드 들어보기
+          </button>
+          <button
+            role="tab"
+            aria-selected={simplePage === 'song'}
+            className={simplePage === 'song' ? 'active' : ''}
+            onClick={() => setSimplePage('song')}
+          >
+            곡 써보기
           </button>
         </div>
 
-        {/* Saved Progressions Drawer / Modal */}
         {showSavedDrawer && (
           <div style={{
             background: '#fff',
@@ -804,6 +777,7 @@ export const App: React.FC = () => {
             onPlayCustomDegrees={handlePlaySimpleCustom}
             onStop={handleStop}
             activePresetId={activePresetId}
+            simplePage={simplePage}
           />
         ) : (
           <>
