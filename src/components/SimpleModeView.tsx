@@ -21,29 +21,39 @@ interface SimpleModeViewProps {
   activePresetId: string | null;
 }
 
-const TWINKLE_EXAMPLE = `[Verse]\n1 4 1\n4 1 5 1\n\n[Verse]\n1 4 1 5\n1 4 1 5\n\n[Verse]\n1 4 1\n4 1 5 1`;
+const DEFAULT_SONG_TEXT = `[Intro]
 
-const parseSongText = (text: string) => {
+[Pre-Chorus]
+
+[Chorus]`;
+
+const parseSongSections = (text: string) => {
   const lines = text.split(/\r?\n/);
   const sections: { title: string; lines: string[] }[] = [];
   let current = { title: 'Verse', lines: [] as string[] };
 
   for (const rawLine of lines) {
     const line = rawLine.trim();
-    if (!line) continue;
     const phase = line.match(/^\[(.+?)\]$/);
     if (phase) {
-      if (current.lines.length > 0 || sections.length === 0) sections.push(current);
+      if (sections.length > 0 || current.lines.length > 0 || current.title !== 'Verse') sections.push(current);
       current = { title: phase[1], lines: [] };
       continue;
     }
+    if (!line) continue;
     const digits = line.replace(/[^1-7]/g, '');
     if (digits) current.lines.push(digits);
   }
 
-  if (current.lines.length > 0) sections.push(current);
+  if (sections.length > 0 || current.lines.length > 0 || current.title !== 'Verse') sections.push(current);
   return sections;
 };
+
+const parseSongText = (text: string) =>
+  parseSongSections(text).filter(section => section.lines.length > 0);
+
+const serializeSongSections = (sections: { title: string; lines: string[] }[]) =>
+  sections.map(section => `[${section.title}]\\n${section.lines.join('\\n')}`).join('\\n\\n');
 
 export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
   currentKey, onSelectKey, isPlaying, currentPlayingIndex, currentChord, nextChord,
@@ -51,7 +61,8 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
   onPlayCustomDegrees, activePresetId,
 }) => {
   const [customInput, setCustomInput] = React.useState('154');
-  const [songText, setSongText] = React.useState(TWINKLE_EXAMPLE);
+  const [songText, setSongText] = React.useState(DEFAULT_SONG_TEXT);
+  const [songInputMode, setSongInputMode] = React.useState<'boxes' | 'text'>('boxes');
   const [isSongPlaying, setIsSongPlaying] = React.useState(false);
 
   const handleCustomPlay = () => {
@@ -70,6 +81,18 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
   };
 
   const songSections = parseSongText(songText);
+  const editableSongSections = parseSongSections(songText);
+
+  const updateSongSection = (index: number, value: string) => {
+    const sections = editableSongSections.map(section => ({
+      ...section,
+      lines: [...section.lines],
+    }));
+    const lines = value.split(/\r?\n/).map(line => line.replace(/[^1-7\s]/g, '').trim()).filter(Boolean);
+    if (!sections[index]) return;
+    sections[index].lines = lines;
+    setSongText(serializeSongSections(sections));
+  };
   const sectionForIndex = (index: number) => {
     if (!isSongPlaying || index < 0) return '';
     let offset = 0;
@@ -153,49 +176,52 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
       </div>
     </section>
 
-    <section className="simple-section" style={{ marginTop: 20 }}>
+    <section className="simple-section song-writer-section">
       <div className="simple-section-heading">
         <h3>곡 써보기</h3>
+        <div className="song-input-toggle" role="group" aria-label="입력 방식">
+          <button className={songInputMode === 'boxes' ? 'active' : ''} onClick={() => setSongInputMode('boxes')}>박스</button>
+          <button className={songInputMode === 'text' ? 'active' : ''} onClick={() => setSongInputMode('text')}>텍스트</button>
+        </div>
       </div>
-      <p style={{ margin: '0 0 8px', fontSize: 12, color: '#666' }}>
-        Key를 정하고 숫자로 코드를 씁니다. [Verse] 같은 Phase와 줄바꿈으로 곡을 나눌 수 있어요.
-      </p>
-      <textarea
-        value={songText}
-        onChange={e => setSongText(e.target.value)}
-        spellCheck={false}
-        aria-label="숫자 코드 곡 입력"
-        style={{
-          width: '100%', minHeight: 190, boxSizing: 'border-box', resize: 'vertical',
-          border: '1px solid #d9dce2', borderRadius: 10, padding: '12px',
-          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 14,
-          lineHeight: 1.7, color: '#111', background: '#fff'
-        }}
-      />
+
+      {songInputMode === 'boxes' ? (
+        <div className="song-section-boxes">
+          {editableSongSections.map((section, index) => (
+            <div className="song-section-box" key={`${section.title}-${index}`}>
+              <strong>{section.title}</strong>
+              <textarea
+                value={section.lines.join('\\n')}
+                onChange={e => updateSongSection(index, e.target.value)}
+                spellCheck={false}
+                aria-label={`${section.title} 코드 입력`}
+                placeholder="예: 1546"
+              />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <textarea
+          value={songText}
+          onChange={e => setSongText(e.target.value)}
+          spellCheck={false}
+          aria-label="숫자 코드 곡 입력"
+          className="song-text-editor"
+          placeholder="[Verse]\\n1546\\n\\n[Chorus]\\n1564"
+        />
+      )}
+
       {songSections.length > 0 && (
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+        <div className="song-section-tags">
           {songSections.map((section, index) => (
-            <span key={`${section.title}-${index}`} style={{
-              padding: '4px 8px', borderRadius: 999, background: '#f3f4f6',
-              fontSize: 11, color: '#555'
-            }}>{section.title}</span>
+            <span key={`${section.title}-${index}`}>{section.title}</span>
           ))}
         </div>
       )}
-      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-        <button
-          onClick={() => setSongText(TWINKLE_EXAMPLE)}
-          style={{ flex: 1, padding: '10px 12px', border: '1px solid #ddd', borderRadius: 8, background: '#fff', fontWeight: 700 }}
-        >
-          Twinkle 예제
-        </button>
-        <button
-          onClick={handleSongPlay}
-          disabled={!songSections.length}
-          style={{ flex: 1, padding: '10px 12px', border: 'none', borderRadius: 8, background: '#111', color: '#fff', fontWeight: 700 }}
-        >
-          ▶ 곡 전체 듣기
-        </button>
+
+      <div className="song-writer-actions">
+        <button onClick={() => setSongText(DEFAULT_SONG_TEXT)} className="song-reset-btn">기본 구조</button>
+        <button onClick={handleSongPlay} disabled={!songSections.length} className="song-play-btn">▶ 곡 전체 듣기</button>
       </div>
     </section>
 
