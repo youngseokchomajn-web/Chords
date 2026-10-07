@@ -597,6 +597,11 @@ h2 {
   flex-wrap:wrap;
   margin-top:8px;
 }
+.song-section-tags span.active {
+  background: #111;
+  color: #fff;
+  border-color: #111;
+}
 .song-section-tags span {
   padding:4px 8px;
   border-radius:999px;
