@@ -26,7 +26,7 @@ export class PlaybackEngine {
   private static _isLooping = false;
   private static _currentIndex = -1;
   private static _paused = false;
-  private static _lastPlayback: { items: ProgressionItem[]; rhythm: RhythmPattern; bpm: number; capo: number; events: PlaybackEvents } | null = null;
+  private static _lastPlayback: { items: ProgressionItem[]; rhythm: RhythmPattern; bpm: number; capo: number; chordBeats?: number[]; events: PlaybackEvents } | null = null;
 
   public static get isPlaying(): boolean {
     return this._isPlaying;
@@ -87,13 +87,12 @@ export class PlaybackEngine {
 
   public static resume(): boolean {
     if (!this._paused || !this._lastPlayback) return false;
-    const { items, rhythm, bpm, capo, events } = this._lastPlayback;
+    const { items, rhythm, bpm, capo, chordBeats, events } = this._lastPlayback;
     this._isPlaying = true;
     this._paused = false;
     const currentGen = ++this.generation;
     const startIndex = Math.max(0, Math.min(this._currentIndex, items.length - 1));
     const beatSec = 60 / Math.max(40, Math.min(240, bpm));
-    const chordStepMs = beatSec * 4 * 1000;
     const strokeStepSec = beatSec / 2;
 
     const scheduleSequence = (fromIndex: number) => {
@@ -101,6 +100,8 @@ export class PlaybackEngine {
       for (let index = fromIndex; index < items.length; index++) {
         const item = items[index];
         const nextItem = index < items.length - 1 ? items[index + 1] : this._isLooping ? items[0] : null;
+        const itemBeats = chordBeats?.[index] ?? 4;
+        const elapsedMs = items.slice(fromIndex, index).reduce((sum, _, offset) => sum + (chordBeats?.[fromIndex + offset] ?? 4) * beatSec * 1000, 0);
         this.addTimer(() => {
           if (this.generation !== currentGen || !this._isPlaying) return;
           this._currentIndex = index;
@@ -109,6 +110,7 @@ export class PlaybackEngine {
           const def = getChordDefinition(item.root, item.quality, item.voicingType);
           const frets = this.applyCapo(def.primaryVoicing.frets, capo);
           rhythm.pattern.forEach((stroke, strokeIdx) => {
+            if (strokeIdx * strokeStepSec >= itemBeats * beatSec) return;
             this.addTimer(() => {
               if (this.generation !== currentGen || !this._isPlaying) return;
               if (strokeIdx % 2 === 0) events.onBeat?.(Math.floor(strokeIdx / 2));
@@ -121,8 +123,9 @@ export class PlaybackEngine {
               }
             }, strokeIdx * strokeStepSec * 1000);
           });
-        }, (index - fromIndex) * chordStepMs);
+        }, elapsedMs);
       }
+      const remainingMs = items.slice(fromIndex).reduce((sum, _, offset) => sum + (chordBeats?.[fromIndex + offset] ?? 4) * beatSec * 1000, 0);
       this.addTimer(() => {
         if (this.generation !== currentGen || !this._isPlaying) return;
         if (this._isLooping) {
@@ -133,7 +136,7 @@ export class PlaybackEngine {
           this._lastPlayback = null;
           events.onFinish?.();
         }
-      }, (items.length - fromIndex) * chordStepMs);
+      }, remainingMs);
     };
 
     audioContextManager.unlockSync();
@@ -166,6 +169,7 @@ export class PlaybackEngine {
     bpm: number,
     capo: number = 0,
     loop: boolean = this._isLooping,
+    chordBeats?: number[],
     events: PlaybackEvents = {}
   ): void {
     if (!items || items.length === 0) return;
@@ -176,11 +180,10 @@ export class PlaybackEngine {
     this._isPlaying = true;
     this._isLooping = loop;
     this._paused = false;
-    this._lastPlayback = { items, rhythm, bpm, capo, events };
+    this._lastPlayback = { items, rhythm, bpm, capo, chordBeats, events };
     const currentGen = ++this.generation;
 
     const beatSec = 60 / Math.max(40, Math.min(240, bpm));
-    const chordStepMs = beatSec * 4 * 1000;
     const strokeStepSec = beatSec / 2; // 8th note subdivisions
 
     const scheduleSequence = () => {
@@ -188,6 +191,8 @@ export class PlaybackEngine {
 
       items.forEach((item, index) => {
         const nextItem = index < items.length - 1 ? items[index + 1] : loop ? items[0] : null;
+        const itemBeats = chordBeats?.[index] ?? 4;
+        const elapsedMs = items.slice(0, index).reduce((sum, _, offset) => sum + (chordBeats?.[offset] ?? 4) * beatSec * 1000, 0);
 
         this.addTimer(() => {
           if (this.generation !== currentGen || !this._isPlaying) return;
@@ -220,10 +225,11 @@ export class PlaybackEngine {
               }
             }, strokeIdx * strokeStepSec * 1000);
           });
-        }, index * chordStepMs);
+        }, elapsedMs);
       });
 
       // End of progression sequence
+      const totalDurationMs = items.reduce((sum, _, index) => sum + (chordBeats?.[index] ?? 4) * beatSec * 1000, 0);
       this.addTimer(() => {
         if (this.generation !== currentGen || !this._isPlaying) return;
 
@@ -236,7 +242,7 @@ export class PlaybackEngine {
           this._currentIndex = -1;
           events.onFinish?.();
         }
-      }, items.length * chordStepMs);
+      }, totalDurationMs);
     };
 
     scheduleSequence();
