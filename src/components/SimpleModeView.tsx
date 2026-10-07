@@ -1,6 +1,5 @@
 import React from 'react';
 import { NoteName } from '../types/music';
-import { ProgressionItem } from '../types/progression';
 import { MONEY_CHORDS, MoneyChordPreset, buildProgressionFromDegrees } from '../data/moneyChords';
 
 const SIMPLE_KEYS: NoteName[] = ['C', 'G', 'D', 'A', 'E', 'F', 'B'];
