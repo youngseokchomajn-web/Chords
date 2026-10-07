@@ -311,7 +311,7 @@ export const App: React.FC = () => {
   // -------------------------------------------------------------
   // Handlers: Transport & Playback (P1/P2)
   // -------------------------------------------------------------
-  const startPlayback = (itemsToPlay = progression) => {
+  const startPlayback = (itemsToPlay = progression, chordBeats?: number[]) => {
     if (!itemsToPlay || itemsToPlay.length === 0) {
       showFeedback('재생할 코드가 없습니다');
       return;
@@ -325,6 +325,7 @@ export const App: React.FC = () => {
       bpm,
       capo,
       isLooping,
+      chordBeats,
       {
         onStep: (index, currentChord, nextChord) => {
           setPlaybackPos(prev => ({
@@ -416,11 +417,20 @@ export const App: React.FC = () => {
   };
 
   const handlePlaySimpleCustom = (input: string) => {
-    const degrees = input.split('').map(Number);
-    if (degrees.length === 0 || degrees.some(d => d < 1 || d > 7)) {
+    const hasBars = input.includes('/');
+    const bars = hasBars ? input.split('/').map(bar => bar.replace(/[^1-7]/g, '')) : [input.replace(/[^1-7]/g, '')];
+    const degrees = bars.join('').split('').map(Number);
+    if (degrees.length === 0 || bars.some(bar => !bar) || degrees.some(d => d < 1 || d > 7)) {
       showFeedback('1~7 숫자로 입력해주세요');
       return;
     }
+    const chordBeats = hasBars
+      ? bars.flatMap(bar => {
+          const count = bar.length;
+          const beats = 4 / count;
+          return Array.from({ length: count }, () => beats);
+        })
+      : undefined;
     if (isPlaying) {
       PlaybackEngine.stop();
       setIsPlaying(false);
@@ -435,7 +445,7 @@ export const App: React.FC = () => {
       voicingType: items[0].voicingType || 'open'
     });
     setTimeout(() => {
-      startPlayback(items);
+      startPlayback(items, chordBeats);
     }, 40);
   };
 
