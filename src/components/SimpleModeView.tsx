@@ -159,7 +159,7 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
       </div>
     </section>
 
-    {isPlaying && (
+    {(isPlaying || isPaused) && (
       <section className="simple-player-banner">
         <div className="simple-player-main">
           <div><strong className="simple-now-chord">{currentChord || '-'}</strong></div>
@@ -170,6 +170,7 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
           <span>{bpm} BPM</span>
         </div>
         <div className="simple-player-actions">
+          <button onClick={isPaused ? onResume : onPause}>{isPaused ? '▶ 계속' : 'Ⅱ 일시정지'}</button>
           <button onClick={onStop}>정지</button>
           <button className={isLooping ? 'active' : ''} onClick={onToggleLoop}>{isLooping ? '반복 중' : '반복'}</button>
         </div>
@@ -230,6 +231,27 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
           <button key={note} className={`simple-key-btn ${currentKey === note ? 'selected' : ''}`}
             onClick={() => onSelectKey(note)} aria-label={`${note} key`}>{note}</button>
         ))}
+      </div>
+    </section>
+
+    <section className="simple-section song-play-status">
+      <div className="song-play-status-head">
+        <span className="song-play-status-label">{isPaused ? '일시정지' : isPlaying ? '재생 중' : '재생 대기'}</span>
+        <span>{bpm} BPM</span>
+      </div>
+      <div className="song-play-status-main">
+        <div>
+          <span className="song-play-status-caption">현재 코드</span>
+          <strong>{currentChord || '-'}</strong>
+        </div>
+        <div>
+          <span className="song-play-status-caption">다음 코드</span>
+          <strong>{nextChord || '-'}</strong>
+        </div>
+      </div>
+      <div className="song-play-status-section">
+        <span>현재 구간</span>
+        <strong>{currentSongSection || '-'}</strong>
       </div>
     </section>
 
