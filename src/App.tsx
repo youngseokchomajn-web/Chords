@@ -56,7 +56,7 @@ const EXTENDED_QUALITIES: { label: string; value: ChordQuality }[] = [
 
 export const App: React.FC = () => {
   // 0. App Mode (Simple vs Studio)
-  const [appMode, setAppMode] = useState<'simple' | 'studio'>('simple');
+  const [appMode] = useState<'simple' | 'studio'>('simple');
   const [simplePage, setSimplePage] = useState<'listen' | 'song'>('listen');
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
 
