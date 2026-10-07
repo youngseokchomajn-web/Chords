@@ -94,6 +94,7 @@ export class PlaybackEngine {
     const startIndex = Math.max(0, Math.min(this._currentIndex, items.length - 1));
     const beatSec = 60 / Math.max(40, Math.min(240, bpm));
     const strokeStepSec = beatSec / 2;
+    const startTime = performance.now();
 
     const scheduleSequence = (fromIndex: number) => {
       if (this.generation !== currentGen || !this._isPlaying) return;
@@ -183,69 +184,69 @@ export class PlaybackEngine {
     this._paused = false;
     this._lastPlayback = { items, rhythm, bpm, capo, chordBeats, events };
     const currentGen = ++this.generation;
-    const startTime = performance.now();
 
+    const ctx = audioContextManager.getContext();
     const beatSec = 60 / Math.max(40, Math.min(240, bpm));
-    const strokeStepSec = beatSec / 2; // 8th note subdivisions
-
+    const strokeStepSec = beatSec / 2;
     const scheduleSequence = () => {
       if (this.generation !== currentGen || !this._isPlaying) return;
+
+      const audioStart = ctx.currentTime + 0.06;
+      let elapsedSec = 0;
 
       items.forEach((item, index) => {
         const nextItem = index < items.length - 1 ? items[index + 1] : loop ? items[0] : null;
         const itemBeats = chordBeats?.[index] ?? 4;
-        const elapsedMs = items.slice(0, index).reduce((sum, _, offset) => sum + (chordBeats?.[offset] ?? 4) * beatSec * 1000, 0);
+        const chordStart = audioStart + elapsedSec;
 
+        if (index > 0) {
+          GuitarSoundEngine.releaseAllAt(chordStart, 0.045);
+        }
+
+        const def = getChordDefinition(item.root, item.quality, item.voicingType);
+        const frets = this.applyCapo(def.primaryVoicing.frets, capo);
+
+        rhythm.pattern.forEach((stroke, strokeIdx) => {
+          const strokeOffsetSec = strokeIdx * strokeStepSec;
+          if (strokeOffsetSec >= itemBeats * beatSec || stroke === 'rest') return;
+          const when = chordStart + strokeOffsetSec;
+          if (strokeIdx % 2 === 0) {
+            const beatNumber = Math.floor(strokeIdx / 2);
+            const delay = Math.max(0, (when - ctx.currentTime) * 1000);
+            this.addTimer(() => {
+              if (this.generation === currentGen && this._isPlaying) events.onBeat?.(beatNumber);
+            }, delay);
+          }
+          GuitarSoundEngine.strumAt(frets, when, {
+            direction: stroke,
+            speedSec: 0.007,
+            velocity: stroke === 'up' ? 0.82 : 0.95
+          });
+        });
+
+        const uiDelay = Math.max(0, (chordStart - ctx.currentTime) * 1000);
         this.addTimer(() => {
           if (this.generation !== currentGen || !this._isPlaying) return;
-
           this._currentIndex = index;
-          // Keep only a very short tail at musical chord boundaries so chords do not overlap.
-          // Explicit Stop still uses stopAll() above.
-          GuitarSoundEngine.releaseAll(0.045);
-
           events.onStep?.(index, item.chordName, nextItem ? nextItem.chordName : null);
+        }, uiDelay);
 
-          const def = getChordDefinition(item.root, item.quality, item.voicingType);
-          const frets = this.applyCapo(def.primaryVoicing.frets, capo);
-
-          rhythm.pattern.forEach((stroke, strokeIdx) => {
-            if (strokeIdx * strokeStepSec >= itemBeats * beatSec) return;
-            this.addTimer(() => {
-              if (this.generation !== currentGen || !this._isPlaying) return;
-
-              // Beat indicator callback (every 2 eighth notes = 1 quarter beat)
-              if (strokeIdx % 2 === 0) {
-                events.onBeat?.(Math.floor(strokeIdx / 2));
-              }
-
-              if (stroke !== 'rest') {
-                GuitarSoundEngine.strum(frets, {
-                  direction: stroke,
-                  speedSec: 0.007,
-                  velocity: stroke === 'up' ? 0.82 : 0.95
-                });
-              }
-            }, strokeIdx * strokeStepSec * 1000);
-          });
-        }, Math.max(0, elapsedMs - (performance.now() - startTime)));
+        elapsedSec += itemBeats * beatSec;
       });
 
-      // End of progression sequence
-      const totalDurationMs = items.reduce((sum, _, index) => sum + (chordBeats?.[index] ?? 4) * beatSec * 1000, 0);
+      const totalDurationMs = elapsedSec * 1000;
       this.addTimer(() => {
         if (this.generation !== currentGen || !this._isPlaying) return;
 
         if (this._isLooping) {
-          // Continuous Loop
           scheduleSequence();
         } else {
-          // Finished
           this._isPlaying = false;
           this._currentIndex = -1;
+          this._lastPlayback = null;
           events.onFinish?.();
         }
-      }, Math.max(0, totalDurationMs - (performance.now() - startTime)));
+      }, Math.max(0, totalDurationMs + 60));
     };
 
     scheduleSequence();
