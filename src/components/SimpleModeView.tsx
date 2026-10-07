@@ -77,7 +77,6 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
 
   const handleCustomPlay = () => {
     if (/^[1-7]+$/.test(customInput)) {
-      setIsSongPlaying(false);
       onPlayCustomDegrees(customInput);
     }
   };
