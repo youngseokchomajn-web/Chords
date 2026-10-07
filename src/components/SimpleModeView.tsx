@@ -246,11 +246,11 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
         <span>{bpm} BPM</span>
       </div>
       <div className="song-play-status-main">
-        <div>
+        <div className="song-play-current">
           <span className="song-play-status-caption">현재 코드</span>
           <strong>{currentChord || '-'}</strong>
         </div>
-        <div>
+        <div className="song-play-next">
           <span className="song-play-status-caption">다음 코드</span>
           <strong>{nextChord || '-'}</strong>
         </div>
