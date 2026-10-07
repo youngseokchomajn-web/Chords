@@ -99,6 +99,7 @@ export class PlaybackEngine {
       if (this.generation !== currentGen || !this._isPlaying) return;
       for (let index = fromIndex; index < items.length; index++) {
         const item = items[index];
+        const itemBeats = chordBeats?.[index] ?? 4;
         const nextItem = index < items.length - 1 ? items[index + 1] : this._isLooping ? items[0] : null;
         const elapsedMs = items.slice(fromIndex, index).reduce((sum, _, offset) => sum + (chordBeats?.[fromIndex + offset] ?? 4) * beatSec * 1000, 0);
         this.addTimer(() => {
@@ -206,7 +207,6 @@ export class PlaybackEngine {
           const def = getChordDefinition(item.root, item.quality, item.voicingType);
           const frets = this.applyCapo(def.primaryVoicing.frets, capo);
 
-          const itemBeats = chordBeats?.[index] ?? 4;
           rhythm.pattern.forEach((stroke, strokeIdx) => {
             if (strokeIdx * strokeStepSec >= itemBeats * beatSec) return;
             this.addTimer(() => {
