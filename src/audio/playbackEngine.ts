@@ -105,7 +105,7 @@ export class PlaybackEngine {
         this.addTimer(() => {
           if (this.generation !== currentGen || !this._isPlaying) return;
           this._currentIndex = index;
-          GuitarSoundEngine.releaseAll(0.11);
+          GuitarSoundEngine.releaseAll(0.045);
           events.onStep?.(index, item.chordName, nextItem ? nextItem.chordName : null);
           const def = getChordDefinition(item.root, item.quality, item.voicingType);
           const frets = this.applyCapo(def.primaryVoicing.frets, capo);
@@ -198,7 +198,7 @@ export class PlaybackEngine {
           if (this.generation !== currentGen || !this._isPlaying) return;
 
           this._currentIndex = index;
-          // Keep a short natural tail at musical chord boundaries.
+          // Keep only a very short tail at musical chord boundaries so chords do not overlap.
           // Explicit Stop still uses stopAll() above.
           GuitarSoundEngine.releaseAll(0.11);
 
