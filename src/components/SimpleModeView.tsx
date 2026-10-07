@@ -23,16 +23,52 @@ interface SimpleModeViewProps {
   activePresetId: string | null;
 }
 
+const TWINKLE_EXAMPLE = `[Verse]\n1 4 1\n4 1 5 1\n\n[Verse]\n1 4 1 5\n1 4 1 5\n\n[Verse]\n1 4 1\n4 1 5 1`;
+
+const parseSongText = (text: string) => {
+  const lines = text.split(/\r?\n/);
+  const sections: { title: string; lines: string[] }[] = [];
+  let current = { title: 'Verse', lines: [] as string[] };
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    const phase = line.match(/^\[(.+?)\]$/);
+    if (phase) {
+      if (current.lines.length > 0 || sections.length === 0) sections.push(current);
+      current = { title: phase[1], lines: [] };
+      continue;
+    }
+    const digits = line.replace(/[^1-7]/g, '');
+    if (digits) current.lines.push(digits);
+  }
+
+  if (current.lines.length > 0) sections.push(current);
+  return sections;
+};
+
 export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
   currentKey, onSelectKey, isPlaying, currentPlayingIndex, currentChord, nextChord,
   beat, bpm, isLooping, onToggleLoop, onPlayPreset, onStop,
   onSwitchToStudioWithItems, onPlayCustomDegrees, activePresetId,
 }) => {
   const [customInput, setCustomInput] = React.useState('154');
+  const [songText, setSongText] = React.useState(TWINKLE_EXAMPLE);
+  const [songSection, setSongSection] = React.useState('');
 
   const handleCustomPlay = () => {
     if (/^[1-7]+$/.test(customInput)) onPlayCustomDegrees(customInput);
   };
+
+  const handleSongPlay = () => {
+    const sections = parseSongText(songText);
+    const digits = sections.flatMap(section => section.lines).join('');
+    if (!digits) return;
+    setSongSection(sections[0]?.title || '');
+    onPlayCustomDegrees(digits);
+  };
+
+  const songSections = parseSongText(songText);
 
   return (
   <div className="simple-mode-container">
@@ -52,7 +88,7 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
       <section className="simple-player-banner">
         <div className="simple-player-main">
           <div><strong className="simple-now-chord">{currentChord || '-'}</strong></div>
-          <div className="simple-next"><span>다음</span><strong>{nextChord || '-'}</strong></div>
+          <div className="simple-next"><span>{songSection || '다음'}</span><strong>{nextChord || '-'}</strong></div>
         </div>
         <div className="simple-progress-row">
           <div className="simple-progress-dots">{[0,1,2,3].map(b => <span key={b} className={beat === b ? 'active' : ''} />)}</div>
@@ -102,6 +138,52 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
             </button>
           );
         })}
+      </div>
+    </section>
+
+    <section className="simple-section" style={{ marginTop: 20 }}>
+      <div className="simple-section-heading">
+        <h3>곡 써보기</h3>
+      </div>
+      <p style={{ margin: '0 0 8px', fontSize: 12, color: '#666' }}>
+        Key를 정하고 숫자로 코드를 씁니다. [Verse] 같은 Phase와 줄바꿈으로 곡을 나눌 수 있어요.
+      </p>
+      <textarea
+        value={songText}
+        onChange={e => setSongText(e.target.value)}
+        spellCheck={false}
+        aria-label="숫자 코드 곡 입력"
+        style={{
+          width: '100%', minHeight: 190, boxSizing: 'border-box', resize: 'vertical',
+          border: '1px solid #d9dce2', borderRadius: 10, padding: '12px',
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 14,
+          lineHeight: 1.7, color: '#111', background: '#fff'
+        }}
+      />
+      {songSections.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+          {songSections.map((section, index) => (
+            <span key={`${section.title}-${index}`} style={{
+              padding: '4px 8px', borderRadius: 999, background: '#f3f4f6',
+              fontSize: 11, color: '#555'
+            }}>{section.title}</span>
+          ))}
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+        <button
+          onClick={() => setSongText(TWINKLE_EXAMPLE)}
+          style={{ flex: 1, padding: '10px 12px', border: '1px solid #ddd', borderRadius: 8, background: '#fff', fontWeight: 700 }}
+        >
+          Twinkle 예제
+        </button>
+        <button
+          onClick={handleSongPlay}
+          disabled={!songSections.length}
+          style={{ flex: 1, padding: '10px 12px', border: 'none', borderRadius: 8, background: '#111', color: '#fff', fontWeight: 700 }}
+        >
+          ▶ 곡 전체 듣기
+        </button>
       </div>
     </section>
 
