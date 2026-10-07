@@ -180,6 +180,7 @@ interface ActiveVoice {
   gainNode: GainNode;
   sourceNode?: AudioBufferSourceNode;
   startTime: number;
+  groupId?: string;
 }
 
 export class GuitarSoundEngine {
@@ -257,6 +258,7 @@ export class GuitarSoundEngine {
     stringIdx: number,
     start: number,
     velocity: number,
+    groupId?: string,
   ): void {
     const ctx = audioContextManager.getContext();
     try {
@@ -281,7 +283,7 @@ export class GuitarSoundEngine {
       };
 
       source.start(start);
-      this.activeVoices.push({ gainNode: gain, sourceNode: source, startTime: start });
+      this.activeVoices.push({ gainNode: gain, sourceNode: source, startTime: start, groupId });
     } catch (err) {
       console.warn('Guitar sample playback failed:', err);
     }
@@ -318,6 +320,7 @@ export class GuitarSoundEngine {
     frets: [number, number, number, number, number, number],
     when: number,
     options: StrumOptions = {},
+    groupId?: string,
   ): void {
     const speed = options.speedSec ?? 0.007;
     const direction = options.direction ?? 'down';
@@ -333,7 +336,7 @@ export class GuitarSoundEngine {
       const best = findBestSampleForString(stringIndex, fret, midi);
       if (!best) continue;
       const start = when + soundingIndex * speed;
-      this.triggerVoice(best.buffer, best.sampleMidi, midi, stringIndex, start, velocity * (0.96 + (soundingIndex % 2) * 0.04));
+      this.triggerVoice(best.buffer, best.sampleMidi, midi, stringIndex, start, velocity * (0.96 + (soundingIndex % 2) * 0.04), groupId);
       soundingIndex++;
     }
   }
@@ -343,21 +346,28 @@ export class GuitarSoundEngine {
     frets: [number, number, number, number, number, number],
     when: number,
     options: StrumOptions = {},
+    groupId?: string,
   ): void {
     audioContextManager.unlockSync();
-    this.strumAtInternal(frets, when, options);
+    this.strumAtInternal(frets, when, options, groupId);
   }
 
-  /** Release only voices that started before the given audio-clock time. */
-  public static releaseAllAt(when: number, fadeTime = 0.045): void {
-    const safeFade = Math.max(0.04, Math.min(0.25, fadeTime));
+  /**
+   * End one chord's voice group at an exact musical boundary.
+   * Gain reaches silence at the boundary, so the next chord cannot inherit
+   * an audible tail from this group.
+   */
+  public static releaseGroupAt(groupId: string, when: number, fadeTime = 0.008): void {
+    const safeFade = Math.max(0.002, Math.min(0.05, fadeTime));
+    const fadeStart = Math.max(0, when - safeFade);
+
     this.activeVoices.forEach(voice => {
-      if (voice.startTime >= when) return;
+      if (voice.groupId !== groupId) return;
       try {
-        voice.gainNode.gain.cancelScheduledValues(when);
-        voice.gainNode.gain.setValueAtTime(0.0001, when);
-        voice.gainNode.gain.linearRampToValueAtTime(0.0001, when + safeFade);
-        if (voice.sourceNode) voice.sourceNode.stop(when + safeFade + 0.005);
+        voice.gainNode.gain.cancelScheduledValues(fadeStart);
+        voice.gainNode.gain.setValueAtTime(Math.max(0.0001, voice.gainNode.gain.value), fadeStart);
+        voice.gainNode.gain.linearRampToValueAtTime(0.0001, when);
+        if (voice.sourceNode) voice.sourceNode.stop(when + 0.002);
       } catch {
         // Voice already stopped.
       }
