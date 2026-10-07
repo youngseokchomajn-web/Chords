@@ -518,6 +518,7 @@ export const App: React.FC = () => {
             currentKey={key}
             onSelectKey={handleSelectSimpleKey}
             isPlaying={isPlaying}
+            isPaused={isPaused}
             currentPlayingIndex={playbackPos.currentIndex}
             currentChord={playbackPos.currentChord}
             nextChord={playbackPos.nextChord}
@@ -528,6 +529,8 @@ export const App: React.FC = () => {
             onPlayPreset={handlePlaySimplePreset}
             onPlayCustomDegrees={handlePlaySimpleCustom}
             onStop={handleStop}
+            onPause={handlePause}
+            onResume={handleResume}
             activePresetId={activePresetId}
             simplePage={simplePage}
           />
