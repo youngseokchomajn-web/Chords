@@ -670,10 +670,15 @@ h2 {
 .song-play-status { background:#17191d; color:#fff; }
 .song-play-status-head { display:flex; justify-content:space-between; color:#8e949d; font-size:10px; font-weight:700; }
 .song-play-status-label { color:#fff; }
-.song-play-status-main { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:10px; }
-.song-play-status-main > div:last-child { text-align:right; }
-.song-play-status-caption { display:block; color:#8e949d; font-size:10px; margin-bottom:3px; }
-.song-play-status-main strong { font-size:30px; line-height:1; }
+.song-play-status-main { display:grid; grid-template-columns:1.35fr .65fr; gap:10px; margin-top:10px; align-items:stretch; }
+.song-play-current, .song-play-next { border-radius:10px; padding:10px 12px; }
+.song-play-current { background:#fff; color:#17191d; }
+.song-play-current .song-play-status-caption { color:#747a83; }
+.song-play-current strong { font-size:34px; line-height:1; }
+.song-play-next { border:1px solid #3a3e45; background:#202329; color:#d6d9de; display:flex; flex-direction:column; justify-content:center; align-items:flex-end; }
+.song-play-next .song-play-status-caption { color:#8e949d; }
+.song-play-next strong { font-size:22px; line-height:1; }
+.song-play-status-caption { display:block; color:#8e949d; font-size:10px; margin-bottom:5px; }
 .song-play-status-section { margin-top:12px; padding-top:10px; border-top:1px solid #30343b; display:flex; justify-content:space-between; align-items:center; }
 .song-play-status-section span { color:#8e949d; font-size:10px; }
 .song-play-status-section strong { font-size:14px; }
