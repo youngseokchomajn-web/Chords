@@ -200,7 +200,7 @@ export class PlaybackEngine {
           this._currentIndex = index;
           // Keep only a very short tail at musical chord boundaries so chords do not overlap.
           // Explicit Stop still uses stopAll() above.
-          GuitarSoundEngine.releaseAll(0.11);
+          GuitarSoundEngine.releaseAll(0.045);
 
           events.onStep?.(index, item.chordName, nextItem ? nextItem.chordName : null);
 
