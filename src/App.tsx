@@ -109,7 +109,7 @@ export const App: React.FC = () => {
   const [savedList, setSavedList] = useState<StoredProgression[]>([]);
   const [showSavedDrawer, setShowSavedDrawer] = useState<boolean>(false);
   const [shareModalUrl, setShareModalUrl] = useState<string | null>(null);
-  const [feedbackMsg, setFeedbackMsg] = useState<string>('');
+  const [, setFeedbackMsg] = useState<string>('');
 
   // 6. Diagnostics & Audio Loading
   const [activeDiagnostic, setActiveDiagnostic] = useState<ChordDiagnostic | null>(null);
