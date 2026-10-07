@@ -19,7 +19,6 @@ interface SimpleModeViewProps {
   onPlayPreset: (preset: MoneyChordPreset) => void;
   onPlayCustomDegrees: (input: string) => void;
   onStop: () => void;
-  onSwitchToStudioWithItems: (items: ProgressionItem[]) => void;
   activePresetId: string | null;
 }
 
@@ -50,25 +49,39 @@ const parseSongText = (text: string) => {
 export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
   currentKey, onSelectKey, isPlaying, currentPlayingIndex, currentChord, nextChord,
   beat, bpm, isLooping, onToggleLoop, onPlayPreset, onStop,
-  onSwitchToStudioWithItems, onPlayCustomDegrees, activePresetId,
+  onPlayCustomDegrees, activePresetId,
 }) => {
   const [customInput, setCustomInput] = React.useState('154');
   const [songText, setSongText] = React.useState(TWINKLE_EXAMPLE);
-  const [songSection, setSongSection] = React.useState('');
+  const [isSongPlaying, setIsSongPlaying] = React.useState(false);
 
   const handleCustomPlay = () => {
-    if (/^[1-7]+$/.test(customInput)) onPlayCustomDegrees(customInput);
+    if (/^[1-7]+$/.test(customInput)) {
+      setIsSongPlaying(false);
+      onPlayCustomDegrees(customInput);
+    }
   };
 
   const handleSongPlay = () => {
     const sections = parseSongText(songText);
     const digits = sections.flatMap(section => section.lines).join('');
     if (!digits) return;
-    setSongSection(sections[0]?.title || '');
+    setIsSongPlaying(true);
     onPlayCustomDegrees(digits);
   };
 
   const songSections = parseSongText(songText);
+  const sectionForIndex = (index: number) => {
+    if (!isSongPlaying || index < 0) return '';
+    let offset = 0;
+    for (const section of songSections) {
+      const length = section.lines.reduce((sum, line) => sum + line.length, 0);
+      if (index < offset + length) return section.title;
+      offset += length;
+    }
+    return '';
+  };
+  const currentSongSection = sectionForIndex(currentPlayingIndex);
 
   return (
   <div className="simple-mode-container">
@@ -88,7 +101,7 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
       <section className="simple-player-banner">
         <div className="simple-player-main">
           <div><strong className="simple-now-chord">{currentChord || '-'}</strong></div>
-          <div className="simple-next"><span>{songSection || '다음'}</span><strong>{nextChord || '-'}</strong></div>
+          <div className="simple-next"><span>{currentSongSection || '다음'}</span><strong>{nextChord || '-'}</strong></div>
         </div>
         <div className="simple-progress-row">
           <div className="simple-progress-dots">{[0,1,2,3].map(b => <span key={b} className={beat === b ? 'active' : ''} />)}</div>
@@ -187,10 +200,6 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
       </div>
     </section>
 
-    <button className="simple-studio-link"
-      onClick={() => onSwitchToStudioWithItems(buildProgressionFromDegrees(currentKey, MONEY_CHORDS[0].degrees))}>
-      더 자세히 만들기 → 스튜디오 모드
-    </button>
   </div>
   );
 };
