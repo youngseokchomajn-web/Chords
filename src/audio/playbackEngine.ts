@@ -19,6 +19,39 @@ export interface PlaybackEvents {
  * Dedicated Playback and Transport Engine (P1/P2 Engine)
  * Manages timing, rhythmic strumming sequences, generational cancellation, Stop and Loop.
  */
+export interface ChordTimelineItem {
+  index: number;
+  barIndex: number;
+  beatOffsetInBar: number;
+  durationBeats: number;
+}
+
+/**
+ * Converts chord durations into a 4/4 bar-aware timeline.
+ * If no durations are supplied, every chord is treated as one complete bar.
+ */
+export function buildChordTimeline(items: ProgressionItem[], chordBeats?: number[]): ChordTimelineItem[] {
+  let barIndex = 0;
+  let beatOffsetInBar = 0;
+
+  return items.map((_, index) => {
+    const durationBeats = chordBeats?.[index] ?? 4;
+    const duration = Math.max(0.0001, durationBeats);
+    if (beatOffsetInBar >= 4 - 0.0001) {
+      barIndex += 1;
+      beatOffsetInBar = 0;
+    }
+
+    const result = { index, barIndex, beatOffsetInBar, durationBeats: duration };
+    beatOffsetInBar += duration;
+
+    if (beatOffsetInBar >= 4 - 0.0001) {
+      beatOffsetInBar = 0;
+    }
+    return result;
+  });
+}
+
 export class PlaybackEngine {
   private static generation = 0;
   private static timerIds: number[] = [];
@@ -26,24 +59,22 @@ export class PlaybackEngine {
   private static _isLooping = false;
   private static _currentIndex = -1;
   private static _paused = false;
-  private static _lastPlayback: { items: ProgressionItem[]; rhythm: RhythmPattern; bpm: number; capo: number; chordBeats?: number[]; events: PlaybackEvents } | null = null;
+  private static _pauseBeat = 0;
+  private static _playbackStartedAt = 0;
+  private static _lastPlayback: {
+    items: ProgressionItem[];
+    rhythm: RhythmPattern;
+    bpm: number;
+    capo: number;
+    chordBeats?: number[];
+    events: PlaybackEvents;
+  } | null = null;
 
-  public static get isPlaying(): boolean {
-    return this._isPlaying;
-  }
+  public static get isPlaying(): boolean { return this._isPlaying; }
+  public static get isLooping(): boolean { return this._isLooping; }
+  public static get currentIndex(): number { return this._currentIndex; }
 
-  public static get isLooping(): boolean {
-    return this._isLooping;
-  }
-
-  public static get currentIndex(): number {
-    return this._currentIndex;
-  }
-
-  public static setLoop(enabled: boolean): void {
-    this._isLooping = enabled;
-  }
-
+  public static setLoop(enabled: boolean): void { this._isLooping = enabled; }
   public static toggleLoop(): boolean {
     this._isLooping = !this._isLooping;
     return this._isLooping;
@@ -62,9 +93,6 @@ export class PlaybackEngine {
     this.timerIds.push(id);
   }
 
-  /**
-   * Immediately halts all audio output and cancels all pending playback timers.
-   */
   public static stop(): void {
     this.generation++;
     this.clearTimers();
@@ -72,11 +100,17 @@ export class PlaybackEngine {
     this._isPlaying = false;
     this._currentIndex = -1;
     this._paused = false;
+    this._pauseBeat = 0;
+    this._playbackStartedAt = 0;
     this._lastPlayback = null;
   }
 
   public static pause(): boolean {
     if (!this._isPlaying || !this._lastPlayback) return false;
+    const { bpm } = this._lastPlayback;
+    const beatSec = 60 / Math.max(40, Math.min(240, bpm));
+    const elapsedBeats = (performance.now() - this._playbackStartedAt) / 1000 / beatSec;
+    this._pauseBeat = Math.max(0, elapsedBeats);
     this.generation++;
     this.clearTimers();
     GuitarSoundEngine.releaseAll(0.08);
@@ -88,67 +122,16 @@ export class PlaybackEngine {
   public static resume(): boolean {
     if (!this._paused || !this._lastPlayback) return false;
     const { items, rhythm, bpm, capo, chordBeats, events } = this._lastPlayback;
+    const startBeat = this._pauseBeat;
     this._isPlaying = true;
     this._paused = false;
+    this._playbackStartedAt = performance.now() - startBeat * (60 / Math.max(40, Math.min(240, bpm))) * 1000;
     const currentGen = ++this.generation;
-    const startIndex = Math.max(0, Math.min(this._currentIndex, items.length - 1));
-    const beatSec = 60 / Math.max(40, Math.min(240, bpm));
-    const strokeStepSec = beatSec / 2;
-    const startTime = performance.now();
-
-    const scheduleSequence = (fromIndex: number) => {
-      if (this.generation !== currentGen || !this._isPlaying) return;
-      for (let index = fromIndex; index < items.length; index++) {
-        const item = items[index];
-        const itemBeats = chordBeats?.[index] ?? 4;
-        const nextItem = index < items.length - 1 ? items[index + 1] : this._isLooping ? items[0] : null;
-        const elapsedMs = items.slice(fromIndex, index).reduce((sum, _, offset) => sum + (chordBeats?.[fromIndex + offset] ?? 4) * beatSec * 1000, 0);
-        this.addTimer(() => {
-          if (this.generation !== currentGen || !this._isPlaying) return;
-          this._currentIndex = index;
-          GuitarSoundEngine.releaseAll(0.045);
-          events.onStep?.(index, item.chordName, nextItem ? nextItem.chordName : null);
-          const def = getChordDefinition(item.root, item.quality, item.voicingType);
-          const frets = this.applyCapo(def.primaryVoicing.frets, capo);
-          rhythm.pattern.forEach((stroke, strokeIdx) => {
-            const strokeOffsetSec = strokeIdx * strokeStepSec;
-            if (strokeOffsetSec >= itemBeats * beatSec) return;
-            this.addTimer(() => {
-              if (this.generation !== currentGen || !this._isPlaying) return;
-              if (strokeIdx % 2 === 0) events.onBeat?.(Math.floor(strokeIdx / 2));
-              if (stroke !== 'rest') {
-                GuitarSoundEngine.strum(frets, {
-                  direction: stroke,
-                  speedSec: 0.007,
-                  velocity: stroke === 'up' ? 0.82 : 0.95
-                });
-              }
-            }, Math.max(0, elapsedMs + strokeOffsetSec * 1000 - (performance.now() - startTime)));
-          });
-        }, elapsedMs);
-      }
-      const remainingMs = items.slice(fromIndex).reduce((sum, _, offset) => sum + (chordBeats?.[fromIndex + offset] ?? 4) * beatSec * 1000, 0);
-      this.addTimer(() => {
-        if (this.generation !== currentGen || !this._isPlaying) return;
-        if (this._isLooping) {
-          scheduleSequence(0);
-        } else {
-          this._isPlaying = false;
-          this._currentIndex = -1;
-          this._lastPlayback = null;
-          events.onFinish?.();
-        }
-      }, remainingMs);
-    };
-
     audioContextManager.unlockSync();
-    scheduleSequence(startIndex);
+    this.scheduleFromBeat(items, rhythm, bpm, capo, chordBeats, events, startBeat, currentGen);
     return true;
   }
 
-  /**
-   * Plays a single chord immediately with user gesture unlock.
-   */
   public static playSingleChord(
     item: ProgressionItem,
     capo: number = 0,
@@ -156,15 +139,11 @@ export class PlaybackEngine {
   ): void {
     this.stop();
     audioContextManager.unlockSync();
-
     const def = getChordDefinition(item.root, item.quality, item.voicingType);
     const frets = this.applyCapo(item.playbackVoicing?.frets ?? def.primaryVoicing.frets, capo);
     GuitarSoundEngine.strum(frets, { speedSec: 0.007, direction });
   }
 
-  /**
-   * Starts playing a sequence of progression items with the given rhythm and BPM.
-   */
   public static playProgression(
     items: ProgressionItem[],
     rhythm: RhythmPattern,
@@ -182,74 +161,113 @@ export class PlaybackEngine {
     this._isPlaying = true;
     this._isLooping = loop;
     this._paused = false;
+    this._pauseBeat = 0;
     this._lastPlayback = { items, rhythm, bpm, capo, chordBeats, events };
+    this._playbackStartedAt = performance.now();
+
     const currentGen = ++this.generation;
+    this.scheduleFromBeat(items, rhythm, bpm, capo, chordBeats, events, 0, currentGen);
+  }
+
+  private static scheduleFromBeat(
+    items: ProgressionItem[],
+    rhythm: RhythmPattern,
+    bpm: number,
+    capo: number,
+    chordBeats: number[] | undefined,
+    events: PlaybackEvents,
+    startBeat: number,
+    currentGen: number
+  ): void {
+    if (this.generation !== currentGen || !this._isPlaying) return;
 
     const ctx = audioContextManager.getContext();
     const beatSec = 60 / Math.max(40, Math.min(240, bpm));
-    const strokeStepSec = beatSec / 2;
-    const scheduleSequence = () => {
-      if (this.generation !== currentGen || !this._isPlaying) return;
+    const timeline = buildChordTimeline(items, chordBeats);
+    const totalBeats = timeline.reduce((sum, item) => sum + item.durationBeats, 0);
+    if (totalBeats <= startBeat + 0.0001) {
+      if (this._isLooping) {
+        this._playbackStartedAt = performance.now();
+        this.scheduleFromBeat(items, rhythm, bpm, capo, chordBeats, events, 0, currentGen);
+      } else {
+        this._isPlaying = false;
+        this._currentIndex = -1;
+        this._lastPlayback = null;
+        events.onFinish?.();
+      }
+      return;
+    }
 
-      const audioStart = ctx.currentTime + 0.06;
-      let elapsedSec = 0;
+    const audioStart = ctx.currentTime + 0.06;
+    const scheduleWallStart = performance.now();
+    const songBeatAt = (index: number) => timeline[index].beatOffsetInBar + timeline[index].barIndex * 4;
 
-      items.forEach((item, index) => {
-        const nextItem = index < items.length - 1 ? items[index + 1] : loop ? items[0] : null;
-        const itemBeats = chordBeats?.[index] ?? 4;
-        const chordStart = audioStart + elapsedSec;
+    timeline.forEach(t => {
+      const chordStartBeat = songBeatAt(t.index);
+      const chordEndBeat = chordStartBeat + t.durationBeats;
+      if (chordEndBeat <= startBeat || chordStartBeat >= totalBeats) return;
 
-        if (index > 0) {
-          GuitarSoundEngine.releaseAllAt(chordStart, 0.045);
-        }
+      const item = items[t.index];
+      const nextItem = t.index < items.length - 1 ? items[t.index + 1] : this._isLooping ? items[0] : null;
+      const def = getChordDefinition(item.root, item.quality, item.voicingType);
+      const frets = this.applyCapo(def.primaryVoicing.frets, capo);
 
-        const def = getChordDefinition(item.root, item.quality, item.voicingType);
-        const frets = this.applyCapo(def.primaryVoicing.frets, capo);
+      if (chordStartBeat >= startBeat) {
+        const when = audioStart + (chordStartBeat - startBeat) * beatSec;
+        GuitarSoundEngine.releaseAllAt(when, 0.045);
+        this.addTimer(() => {
+          if (this.generation !== currentGen || !this._isPlaying) return;
+          this._currentIndex = t.index;
+          events.onStep?.(t.index, item.chordName, nextItem ? nextItem.chordName : null);
+        }, Math.max(0, (when - ctx.currentTime) * 1000));
+      }
 
-        rhythm.pattern.forEach((stroke, strokeIdx) => {
-          const strokeOffsetSec = strokeIdx * strokeStepSec;
-          if (strokeOffsetSec >= itemBeats * beatSec || stroke === 'rest') return;
-          const when = chordStart + strokeOffsetSec;
-          if (strokeIdx % 2 === 0) {
-            const beatNumber = Math.floor(strokeIdx / 2);
-            const delay = Math.max(0, (when - ctx.currentTime) * 1000);
-            this.addTimer(() => {
-              if (this.generation === currentGen && this._isPlaying) events.onBeat?.(beatNumber);
-            }, delay);
-          }
+      const firstSlot = Math.max(
+        0,
+        Math.ceil((startBeat - chordStartBeat) / 0.5 - 0.000001)
+      );
+      for (let slot = firstSlot; slot < Math.ceil(t.durationBeats / 0.5); slot++) {
+        const localBeat = slot * 0.5;
+        const songBeat = chordStartBeat + localBeat;
+        if (songBeat < startBeat - 0.000001) continue;
+
+        const patternIndex = Math.floor((songBeat % 4) / 0.5) % rhythm.pattern.length;
+        const stroke = rhythm.pattern[patternIndex];
+        const when = audioStart + (songBeat - startBeat) * beatSec;
+
+        if (stroke !== 'rest') {
           GuitarSoundEngine.strumAt(frets, when, {
             direction: stroke,
             speedSec: 0.007,
             velocity: stroke === 'up' ? 0.82 : 0.95
           });
-        });
-
-        const uiDelay = Math.max(0, (chordStart - ctx.currentTime) * 1000);
-        this.addTimer(() => {
-          if (this.generation !== currentGen || !this._isPlaying) return;
-          this._currentIndex = index;
-          events.onStep?.(index, item.chordName, nextItem ? nextItem.chordName : null);
-        }, uiDelay);
-
-        elapsedSec += itemBeats * beatSec;
-      });
-
-      const totalDurationMs = elapsedSec * 1000;
-      this.addTimer(() => {
-        if (this.generation !== currentGen || !this._isPlaying) return;
-
-        if (this._isLooping) {
-          scheduleSequence();
-        } else {
-          this._isPlaying = false;
-          this._currentIndex = -1;
-          this._lastPlayback = null;
-          events.onFinish?.();
         }
-      }, Math.max(0, totalDurationMs + 60));
-    };
 
-    scheduleSequence();
+        if (Math.abs(songBeat % 1) < 0.000001) {
+          const beatNumber = Math.floor(songBeat % 4);
+          const delay = Math.max(0, (when - ctx.currentTime) * 1000);
+          this.addTimer(() => {
+            if (this.generation === currentGen && this._isPlaying) events.onBeat?.(beatNumber);
+          }, delay);
+        }
+      }
+    });
+
+    const remainingBeats = totalBeats - startBeat;
+    this.addTimer(() => {
+      if (this.generation !== currentGen || !this._isPlaying) return;
+      if (this._isLooping) {
+        this._playbackStartedAt = performance.now();
+        this.scheduleFromBeat(items, rhythm, bpm, capo, chordBeats, events, 0, currentGen);
+      } else {
+        this._isPlaying = false;
+        this._currentIndex = -1;
+        this._lastPlayback = null;
+        events.onFinish?.();
+      }
+    }, Math.max(0, remainingBeats * beatSec * 1000 + 60));
+
+    void scheduleWallStart;
   }
 
   private static applyCapo(
