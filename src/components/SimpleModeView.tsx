@@ -8,6 +8,7 @@ interface SimpleModeViewProps {
   currentKey: NoteName;
   onSelectKey: (k: NoteName) => void;
   isPlaying: boolean;
+  isPaused: boolean;
   currentPlayingIndex: number;
   currentChord: string | null;
   nextChord: string | null;
@@ -18,6 +19,8 @@ interface SimpleModeViewProps {
   onPlayPreset: (preset: MoneyChordPreset) => void;
   onPlayCustomDegrees: (input: string) => void;
   onStop: () => void;
+  onPause: () => void;
+  onResume: () => void;
   activePresetId: string | null;
   simplePage: 'listen' | 'song';
 }
@@ -62,15 +65,14 @@ const serializeSongSections = (sections: { title: string; lines: string[] }[]) =
   sections.map(section => `[${section.title}]\n${section.lines.join('\n')}`).join('\n\n');
 
 export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
-  currentKey, onSelectKey, isPlaying, currentPlayingIndex, currentChord, nextChord,
-  beat, bpm, isLooping, onToggleLoop, onPlayPreset, onStop,
+  currentKey, onSelectKey, isPlaying, isPaused, currentPlayingIndex, currentChord, nextChord,
+  beat, bpm, isLooping, onToggleLoop, onPlayPreset, onStop, onPause, onResume,
   onPlayCustomDegrees, activePresetId, simplePage,
 }) => {
   const [customInput, setCustomInput] = React.useState('154');
   const [songSectionsDraft, setSongSectionsDraft] = React.useState(() => parseSongSections(DEFAULT_SONG_TEXT));
   const [songText, setSongText] = React.useState(DEFAULT_SONG_TEXT);
   const [songInputMode, setSongInputMode] = React.useState<'boxes' | 'text'>('boxes');
-  const [isSongPlaying, setIsSongPlaying] = React.useState(false);
   const [isSongExample, setIsSongExample] = React.useState(true);
 
   const handleCustomPlay = () => {
@@ -84,7 +86,6 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
     const sections = parseSongText(songText);
     const digits = sections.flatMap(section => section.lines).join('');
     if (!digits) return;
-    setIsSongPlaying(true);
     onPlayCustomDegrees(digits);
   };
 
@@ -132,7 +133,7 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
     setIsSongExample(true);
   };
   const sectionForIndex = (index: number) => {
-    if (!isSongPlaying || index < 0) return '';
+    if (index < 0) return '';
     let offset = 0;
     for (const section of songSections) {
       const length = section.lines.reduce((sum, line) => sum + line.length, 0);
@@ -275,14 +276,25 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
       {songSections.length > 0 && (
         <div className="song-section-tags">
           {songSections.map((section, index) => (
-            <span key={`${section.title}-${index}`}>{section.title}</span>
+            <span key={section.title + '-' + index} className={currentSongSection === section.title ? 'active' : ''}>
+              {section.title}
+            </span>
           ))}
         </div>
       )}
 
       <div className="song-writer-actions">
         <button onClick={resetSong} className="song-reset-btn">기본 구조</button>
-        <button onClick={handleSongPlay} disabled={!songSections.length} className="song-play-btn">▶ 곡 전체 듣기</button>
+        {isPlaying || isPaused ? (
+          <>
+            <button onClick={isPaused ? onResume : onPause} className="song-play-btn">
+              {isPaused ? '▶ 계속 듣기' : 'Ⅱ 일시정지'}
+            </button>
+            <button onClick={onStop} className="song-reset-btn">정지</button>
+          </>
+        ) : (
+          <button onClick={handleSongPlay} disabled={!songSections.length} className="song-play-btn">▶ 곡 전체 듣기</button>
+        )}
       </div>
     </section>
       </>
