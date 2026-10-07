@@ -61,6 +61,7 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
   onPlayCustomDegrees, activePresetId,
 }) => {
   const [customInput, setCustomInput] = React.useState('154');
+  const [songSectionsDraft, setSongSectionsDraft] = React.useState(() => parseSongSections(DEFAULT_SONG_TEXT));
   const [songText, setSongText] = React.useState(DEFAULT_SONG_TEXT);
   const [songInputMode, setSongInputMode] = React.useState<'boxes' | 'text'>('boxes');
   const [isSongPlaying, setIsSongPlaying] = React.useState(false);
@@ -80,18 +81,39 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
     onPlayCustomDegrees(digits);
   };
 
-  const songSections = parseSongText(songText);
-  const editableSongSections = parseSongSections(songText);
+  const editableSongSections = songSectionsDraft;
+  const songSections = editableSongSections.filter(section => section.lines.length > 0);
 
   const updateSongSection = (index: number, value: string) => {
-    const sections = editableSongSections.map(section => ({
-      ...section,
-      lines: [...section.lines],
+    setSongSectionsDraft(prev => prev.map((section, sectionIndex) => {
+      if (sectionIndex !== index) return section;
+      const lines = value.split(/\r?\n/)
+        .map(line => line.replace(/[^1-7\s]/g, '').trim())
+        .filter(Boolean);
+      return { ...section, lines };
     }));
-    const lines = value.split(/\r?\n/).map(line => line.replace(/[^1-7\s]/g, '').trim()).filter(Boolean);
-    if (!sections[index]) return;
-    sections[index].lines = lines;
-    setSongText(serializeSongSections(sections));
+  };
+
+  const switchSongInputMode = (mode: 'boxes' | 'text') => {
+    if (mode === 'text') {
+      setSongText(serializeSongSections(songSectionsDraft.filter(section => section.lines.length > 0)));
+    } else {
+      const parsed = parseSongSections(songText);
+      if (parsed.length > 0) setSongSectionsDraft(parsed);
+    }
+    setSongInputMode(mode);
+  };
+
+  const handleSongTextChange = (value: string) => {
+    setSongText(value);
+    const parsed = parseSongSections(value);
+    if (parsed.length > 0) setSongSectionsDraft(parsed);
+  };
+
+  const resetSong = () => {
+    const sections = parseSongSections(DEFAULT_SONG_TEXT);
+    setSongSectionsDraft(sections);
+    setSongText(DEFAULT_SONG_TEXT);
   };
   const sectionForIndex = (index: number) => {
     if (!isSongPlaying || index < 0) return '';
@@ -180,8 +202,8 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
       <div className="simple-section-heading">
         <h3>곡 써보기</h3>
         <div className="song-input-toggle" role="group" aria-label="입력 방식">
-          <button className={songInputMode === 'boxes' ? 'active' : ''} onClick={() => setSongInputMode('boxes')}>박스</button>
-          <button className={songInputMode === 'text' ? 'active' : ''} onClick={() => setSongInputMode('text')}>텍스트</button>
+          <button className={songInputMode === 'boxes' ? 'active' : ''} onClick={() => switchSongInputMode('boxes')}>박스</button>
+          <button className={songInputMode === 'text' ? 'active' : ''} onClick={() => switchSongInputMode('text')}>텍스트</button>
         </div>
       </div>
 
@@ -203,7 +225,7 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
       ) : (
         <textarea
           value={songText}
-          onChange={e => setSongText(e.target.value)}
+          onChange={e => handleSongTextChange(e.target.value)}
           spellCheck={false}
           aria-label="숫자 코드 곡 입력"
           className="song-text-editor"
@@ -220,7 +242,7 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
       )}
 
       <div className="song-writer-actions">
-        <button onClick={() => setSongText(DEFAULT_SONG_TEXT)} className="song-reset-btn">기본 구조</button>
+        <button onClick={resetSong} className="song-reset-btn">기본 구조</button>
         <button onClick={handleSongPlay} disabled={!songSections.length} className="song-play-btn">▶ 곡 전체 듣기</button>
       </div>
     </section>
