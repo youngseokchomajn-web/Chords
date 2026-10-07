@@ -482,64 +482,6 @@ export const App: React.FC = () => {
           </button>
         </div>
 
-        {showSavedDrawer && (
-          <div style={{
-            background: '#fff',
-            border: '1.5px solid #111',
-            borderRadius: '12px',
-            padding: '12px',
-            marginBottom: '16px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <strong style={{ fontSize: '14px' }}>저장된 진행 목록 ({savedList.length})</strong>
-              <button
-                onClick={() => setShowSavedDrawer(false)}
-                style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '16px' }}
-              >
-                ✕
-              </button>
-            </div>
-            {savedList.length === 0 ? (
-              <div style={{ color: '#888', fontSize: '12px', padding: '12px 0', textAlign: 'center' }}>
-                저장된 코드 진행이 없습니다. [💾 저장] 버튼으로 현재 진행을 저장하세요.
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '180px', overflowY: 'auto' }}>
-                {savedList.map(entry => (
-                  <div
-                    key={entry.id}
-                    onClick={() => handleLoadSavedEntry(entry)}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '8px 10px',
-                      background: '#f9f9fb',
-                      border: '1px solid #ddd',
-                      borderRadius: '6px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <div>
-                      <strong style={{ fontSize: '13px' }}>{entry.name}</strong>
-                      <div style={{ fontSize: '11px', color: '#666' }}>
-                        {entry.items.map(it => it.chordName).join(' - ')} | {entry.bpm} BPM | {entry.capo ? `Capo ${entry.capo}` : 'No Capo'}
-                      </div>
-                    </div>
-                    <button
-                      onClick={e => handleDeleteSavedEntry(e, entry.id)}
-                      style={{ border: 'none', background: '#fee', color: '#c00', borderRadius: '4px', padding: '4px 6px', fontSize: '11px', cursor: 'pointer' }}
-                    >
-                      삭제
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
         {appMode === 'simple' ? (
           <SimpleModeView
             currentKey={key}
