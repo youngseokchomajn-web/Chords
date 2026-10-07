@@ -48,8 +48,8 @@ const parseSongSections = (text: string) => {
       continue;
     }
     if (!line) continue;
-    const digits = line.replace(/[^1-7]/g, '');
-    if (digits) current.lines.push(digits);
+    const progression = line.replace(/[^1-7/\\s]/g, '');
+    if (progression.replace(/[^1-7]/g, '')) current.lines.push(progression);
   }
 
   if (sections.length > 0 || current.lines.length > 0 || current.title !== 'Verse') sections.push(current);
@@ -81,9 +81,9 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
 
   const handleSongPlay = () => {
     const sections = parseSongText(songText);
-    const digits = sections.flatMap(section => section.lines).join('');
-    if (!digits) return;
-    onPlayCustomDegrees(digits);
+    const playbackText = sections.flatMap(section => section.lines).join(' ');
+    if (!playbackText.replace(/[^1-7]/g, '')) return;
+    onPlayCustomDegrees(playbackText);
   };
 
   const editableSongSections = songSectionsDraft;
