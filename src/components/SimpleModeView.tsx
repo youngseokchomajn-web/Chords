@@ -59,7 +59,7 @@ const parseSongText = (text: string) =>
   parseSongSections(text).filter(section => section.lines.length > 0);
 
 const serializeSongSections = (sections: { title: string; lines: string[] }[]) =>
-  sections.map(section => `[${section.title}]\\n${section.lines.join('\\n')}`).join('\\n\\n');
+  sections.map(section => `[${section.title}]\n${section.lines.join('\n')}`).join('\\n\\n');
 
 export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
   currentKey, onSelectKey, isPlaying, currentPlayingIndex, currentChord, nextChord,
