@@ -12,7 +12,7 @@ import {
   AvailableVoicingOption
 } from './theory/chordBuilder';
 import { PlaybackEngine, RhythmPattern } from './audio/playbackEngine';
-import { GuitarSoundEngine, SAMPLES } from './audio/guitarSynth';
+import { GuitarSoundEngine } from './audio/guitarSynth';
 import { audioContextManager } from './audio/audioContext';
 import {
   getChordDiagnostic,
