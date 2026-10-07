@@ -8,7 +8,7 @@ import { getDiatonicChords, transposeNote } from '../src/theory/notes.ts';
 import { getChordDefinition, getAvailableVoicings } from '../src/theory/chordBuilder.ts';
 import { buildShareUrl, parseShareUrl } from '../src/utils/storage.ts';
 import { ProgressionItem } from '../src/types/progression.ts';
-import { buildChordTimeline } from '../src/audio/playbackEngine.ts';
+import { buildChordTimeline, buildPlaybackPlan } from '../src/audio/playbackEngine.ts';
 
 console.log('🧪 Starting CHORDS V2 Feature Tests...\n');
 
@@ -124,22 +124,34 @@ console.log('  ✓ Money Chords progression builder and difficulty detection ver
 console.log('\nTest 6: Bar-aware Playback Timeline');
 const timelineA = buildChordTimeline(cPop, [4, 2, 2]);
 assert.deepStrictEqual(
-  timelineA.map(t => [t.barIndex, t.beatOffsetInBar, t.durationBeats]),
-  [[0, 0, 4], [1, 0, 2], [1, 2, 2]]
+  timelineA.map(t => [t.startBeat, t.endBeat, t.barIndex, t.beatOffsetInBar, t.durationBeats]),
+  [[0, 4, 0, 0, 4], [4, 6, 1, 0, 2], [6, 8, 1, 2, 2]]
 );
 
 const timelineB = buildChordTimeline(cPop, [2, 2, 2, 2]);
 assert.deepStrictEqual(
-  timelineB.map(t => [t.barIndex, t.beatOffsetInBar, t.durationBeats]),
-  [[0, 0, 2], [0, 2, 2], [1, 0, 2], [1, 2, 2]]
+  timelineB.map(t => [t.startBeat, t.endBeat, t.barIndex, t.beatOffsetInBar, t.durationBeats]),
+  [[0, 2, 0, 0, 2], [2, 4, 0, 2, 2], [4, 6, 1, 0, 2], [6, 8, 1, 2, 2]]
 );
 
 const timelineC = buildChordTimeline(cPop);
 assert.deepStrictEqual(
-  timelineC.map(t => [t.barIndex, t.beatOffsetInBar, t.durationBeats]),
-  [[0, 0, 4], [1, 0, 4], [2, 0, 4], [3, 0, 4]]
+  timelineC.map(t => [t.startBeat, t.endBeat, t.barIndex, t.beatOffsetInBar, t.durationBeats]),
+  [[0, 4, 0, 0, 4], [4, 8, 1, 0, 4], [8, 12, 2, 0, 4], [12, 16, 3, 0, 4]]
 );
-console.log('  ✓ Slash-defined bars, split chords, and no-slash default bars verified');
+
+// 7. Deterministic playback plan: chord ownership and boundaries.
+console.log('\nTest 7: Deterministic Playback Plan');
+const plan = buildPlaybackPlan(cPop, { label: 'test', pattern: ['down'] }, [4, 2, 2]);
+assert.deepStrictEqual(
+  plan.map(p => [p.index, p.startBeat, p.endBeat]),
+  [[0, 0, 4], [1, 4, 6], [2, 6, 8]]
+);
+assert.ok(plan.every(p => p.strums.every(s => s.beat >= p.startBeat && s.beat < p.endBeat)));
+for (let i = 1; i < plan.length; i++) {
+  assert.strictEqual(plan[i - 1].endBeat, plan[i].startBeat);
+}
+console.log('  ✓ Playback events stay inside their chord boundaries with no inter-chord time overlap');
 
 console.log('\n🎉 ALL V2 FEATURE TESTS PASSED SUCCESSFULLY!\n');
 
