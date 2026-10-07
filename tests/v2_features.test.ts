@@ -8,6 +8,7 @@ import { getDiatonicChords, transposeNote } from '../src/theory/notes.ts';
 import { getChordDefinition, getAvailableVoicings } from '../src/theory/chordBuilder.ts';
 import { buildShareUrl, parseShareUrl } from '../src/utils/storage.ts';
 import { ProgressionItem } from '../src/types/progression.ts';
+import { buildChordTimeline } from '../src/audio/playbackEngine.ts';
 
 console.log('🧪 Starting CHORDS V2 Feature Tests...\n');
 
@@ -118,6 +119,27 @@ const cRoyal = buildProgressionFromDegrees('C', [4, 5, 3, 6]);
 assert.deepStrictEqual(cRoyal.map(c => c.chordName), ['F', 'G', 'Em', 'Am']);
 
 console.log('  ✓ Money Chords progression builder and difficulty detection verified');
+
+// 6. Bar-aware rhythm timeline
+console.log('\nTest 6: Bar-aware Playback Timeline');
+const timelineA = buildChordTimeline(cPop, [4, 2, 2]);
+assert.deepStrictEqual(
+  timelineA.map(t => [t.barIndex, t.beatOffsetInBar, t.durationBeats]),
+  [[0, 0, 4], [1, 0, 2], [1, 2, 2]]
+);
+
+const timelineB = buildChordTimeline(cPop, [2, 2, 2, 2]);
+assert.deepStrictEqual(
+  timelineB.map(t => [t.barIndex, t.beatOffsetInBar, t.durationBeats]),
+  [[0, 0, 2], [0, 2, 2], [1, 0, 2], [1, 2, 2]]
+);
+
+const timelineC = buildChordTimeline(cPop);
+assert.deepStrictEqual(
+  timelineC.map(t => [t.barIndex, t.beatOffsetInBar, t.durationBeats]),
+  [[0, 0, 4], [1, 0, 4], [2, 0, 4], [3, 0, 4]]
+);
+console.log('  ✓ Slash-defined bars, split chords, and no-slash default bars verified');
 
 console.log('\n🎉 ALL V2 FEATURE TESTS PASSED SUCCESSFULLY!\n');
 
