@@ -181,7 +181,12 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
       <div className="simple-section-heading">
         <h3>바로 들어보기</h3>
       </div>
-      <div className="simple-custom-play">
+      <div className="simple-custom-play-wrap">
+        <div className="simple-custom-play-hint">
+          <strong>숫자로 직접 입력</strong>
+          <span>예: 154 → 1-5-4 코드 진행</span>
+        </div>
+        <div className="simple-custom-play">
         <input
           value={customInput}
           onChange={e => setCustomInput(e.target.value.replace(/[^1-7]/g, '').slice(0, 8))}
@@ -193,6 +198,7 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
           maxLength={8}
         />
         <button onClick={handleCustomPlay} disabled={!customInput}>▶ 듣기</button>
+        </div>
       </div>
       <div className="money-card-list">
         {MONEY_CHORDS.map(preset => {
@@ -266,6 +272,19 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
 
       <div className="song-example-label">예시 · 반짝반짝 작은별</div>
 
+      <div className="song-writer-actions song-writer-actions-top">
+        {isPlaying || isPaused ? (
+          <>
+            <button onClick={isPaused ? onResume : onPause} className="song-play-btn">
+              {isPaused ? '▶ 계속 듣기' : 'Ⅱ 일시정지'}
+            </button>
+            <button onClick={onStop} className="song-reset-btn">정지</button>
+          </>
+        ) : (
+          <button onClick={handleSongPlay} disabled={!songSections.length} className="song-play-btn">▶ 곡 전체 듣기</button>
+        )}
+      </div>
+
       {songInputMode === 'boxes' ? (
         <div className="song-section-boxes">
           {editableSongSections.map((section, index) => (
@@ -306,16 +325,6 @@ export const SimpleModeView: React.FC<SimpleModeViewProps> = ({
 
       <div className="song-writer-actions">
         <button onClick={resetSong} className="song-reset-btn">기본 구조</button>
-        {isPlaying || isPaused ? (
-          <>
-            <button onClick={isPaused ? onResume : onPause} className="song-play-btn">
-              {isPaused ? '▶ 계속 듣기' : 'Ⅱ 일시정지'}
-            </button>
-            <button onClick={onStop} className="song-reset-btn">정지</button>
-          </>
-        ) : (
-          <button onClick={handleSongPlay} disabled={!songSections.length} className="song-play-btn">▶ 곡 전체 듣기</button>
-        )}
       </div>
     </section>
       </>
