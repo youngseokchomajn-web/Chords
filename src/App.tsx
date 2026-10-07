@@ -466,20 +466,6 @@ export const App: React.FC = () => {
     }, 40);
   };
 
-  const handleSwitchToStudioWithItems = (items: ProgressionItem[]) => {
-    if (isPlaying) handleStop();
-    setProgression(items);
-    setSelectedItemIndex(0);
-    if (items.length > 0) {
-      setPreviewChord({
-        root: items[0].root,
-        quality: items[0].quality,
-        voicingType: items[0].voicingType || 'open'
-      });
-    }
-    setAppMode('studio');
-    showFeedback('스튜디오 모드로 전환되었습니다. 자유롭게 진행을 편집해보세요!');
-  };
 
   // -------------------------------------------------------------
   // Handlers: Transpose & Capo (P6)
