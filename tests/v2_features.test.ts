@@ -153,5 +153,26 @@ for (let i = 1; i < plan.length; i++) {
 }
 console.log('  ✓ Playback events stay inside their chord boundaries with no inter-chord time overlap');
 
+console.log('Test 8: Intro C / F C timing');
+const introItems: ProgressionItem[] = [
+  { id: 'intro-c', chordName: 'C', root: 'C', quality: 'major', voicingType: 'open' },
+  { id: 'intro-f', chordName: 'F', root: 'F', quality: 'major', voicingType: 'barre' },
+  { id: 'intro-c2', chordName: 'C', root: 'C', quality: 'major', voicingType: 'open' },
+];
+const introPlan = buildPlaybackPlan(
+  introItems,
+  { label: '8 beat', pattern: ['down', 'rest', 'down', 'up', 'rest', 'up', 'down', 'up'] },
+  [4, 2, 2],
+);
+assert.deepStrictEqual(
+  introPlan.map(p => [p.index, p.startBeat, p.endBeat]),
+  [[0, 0, 4], [1, 4, 6], [2, 6, 8]],
+);
+assert.strictEqual(introPlan[1].strums.at(-1)?.beat, 5.5);
+assert.strictEqual(introPlan[2].strums[0]?.beat, 6);
+assert.strictEqual(introPlan[2].strums[0].beat - introPlan[1].strums.at(-1)!.beat, 0.5);
+console.log('  ✓ Intro C / F C uses 4 beats + 2 beats + 2 beats; C re-enters exactly at beat 6');
+
+
 console.log('\n🎉 ALL V2 FEATURE TESTS PASSED SUCCESSFULLY!\n');
 
