@@ -110,7 +110,8 @@ export class PlaybackEngine {
           const def = getChordDefinition(item.root, item.quality, item.voicingType);
           const frets = this.applyCapo(def.primaryVoicing.frets, capo);
           rhythm.pattern.forEach((stroke, strokeIdx) => {
-            if (strokeIdx * strokeStepSec >= itemBeats * beatSec) return;
+            const strokeOffsetSec = strokeIdx * strokeStepSec;
+            if (strokeOffsetSec >= itemBeats * beatSec) return;
             this.addTimer(() => {
               if (this.generation !== currentGen || !this._isPlaying) return;
               if (strokeIdx % 2 === 0) events.onBeat?.(Math.floor(strokeIdx / 2));
@@ -121,7 +122,7 @@ export class PlaybackEngine {
                   velocity: stroke === 'up' ? 0.82 : 0.95
                 });
               }
-            }, strokeIdx * strokeStepSec * 1000);
+            }, Math.max(0, elapsedMs + strokeOffsetSec * 1000 - (performance.now() - startTime)));
           });
         }, elapsedMs);
       }
@@ -182,6 +183,7 @@ export class PlaybackEngine {
     this._paused = false;
     this._lastPlayback = { items, rhythm, bpm, capo, chordBeats, events };
     const currentGen = ++this.generation;
+    const startTime = performance.now();
 
     const beatSec = 60 / Math.max(40, Math.min(240, bpm));
     const strokeStepSec = beatSec / 2; // 8th note subdivisions
@@ -226,7 +228,7 @@ export class PlaybackEngine {
               }
             }, strokeIdx * strokeStepSec * 1000);
           });
-        }, elapsedMs);
+        }, Math.max(0, elapsedMs - (performance.now() - startTime)));
       });
 
       // End of progression sequence
@@ -243,7 +245,7 @@ export class PlaybackEngine {
           this._currentIndex = -1;
           events.onFinish?.();
         }
-      }, totalDurationMs);
+      }, Math.max(0, totalDurationMs - (performance.now() - startTime)));
     };
 
     scheduleSequence();
