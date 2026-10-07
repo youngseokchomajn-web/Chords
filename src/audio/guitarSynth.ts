@@ -357,17 +357,24 @@ export class GuitarSoundEngine {
    * Gain reaches silence at the boundary, so the next chord cannot inherit
    * an audible tail from this group.
    */
-  public static releaseGroupAt(groupId: string, when: number, fadeTime = 0.008): void {
-    const safeFade = Math.max(0.002, Math.min(0.05, fadeTime));
-    const fadeStart = Math.max(0, when - safeFade);
+  public static releaseGroupAt(groupId: string, when: number, fadeTime = 0.004): void {
+    const safeFade = Math.max(0.001, Math.min(0.02, fadeTime));
 
     this.activeVoices.forEach(voice => {
       if (voice.groupId !== groupId) return;
       try {
+        // The voice must be silent at the exact chord boundary.
+        // Never let the previous chord's tail cross into the next chord.
+        const fadeStart = Math.max(voice.startTime, when - safeFade);
+        const currentGain = Math.max(0.0001, voice.gainNode.gain.value);
+
         voice.gainNode.gain.cancelScheduledValues(fadeStart);
-        voice.gainNode.gain.setValueAtTime(Math.max(0.0001, voice.gainNode.gain.value), fadeStart);
-        voice.gainNode.gain.linearRampToValueAtTime(0.0001, when);
-        if (voice.sourceNode) voice.sourceNode.stop(when + 0.002);
+        voice.gainNode.gain.setValueAtTime(currentGain, fadeStart);
+        voice.gainNode.gain.linearRampToValueAtTime(0, when);
+
+        if (voice.sourceNode) {
+          voice.sourceNode.stop(when + 0.001);
+        }
       } catch {
         // Voice already stopped.
       }
