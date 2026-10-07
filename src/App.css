@@ -664,3 +664,16 @@ h2 {
 
 
 .song-example-label { margin: 0 0 8px; color: #9a9a9a; font-size: 12px; font-weight: 700; }
+
+
+/* Song playback status */
+.song-play-status { background:#17191d; color:#fff; }
+.song-play-status-head { display:flex; justify-content:space-between; color:#8e949d; font-size:10px; font-weight:700; }
+.song-play-status-label { color:#fff; }
+.song-play-status-main { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:10px; }
+.song-play-status-main > div:last-child { text-align:right; }
+.song-play-status-caption { display:block; color:#8e949d; font-size:10px; margin-bottom:3px; }
+.song-play-status-main strong { font-size:30px; line-height:1; }
+.song-play-status-section { margin-top:12px; padding-top:10px; border-top:1px solid #30343b; display:flex; justify-content:space-between; align-items:center; }
+.song-play-status-section span { color:#8e949d; font-size:10px; }
+.song-play-status-section strong { font-size:14px; }
