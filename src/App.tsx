@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { NoteName, ChordQuality } from './types/music';
-import { ProgressionItem, VoicingType, StoredProgression } from './types/progression';
+import { ProgressionItem, VoicingType } from './types/progression';
 import {
   getDiatonicChords,
   transposeNote,
@@ -19,13 +19,6 @@ import {
   ChordDiagnostic
 } from './audio/sampleSelector';
 import { Fretboard } from './components/Fretboard';
-import {
-  loadSavedProgressions,
-  saveProgressionToLocal,
-  deleteSavedProgression,
-  buildShareUrl,
-  parseShareUrl
-} from './utils/storage';
 import { SimpleModeView } from './components/SimpleModeView';
 import { MONEY_CHORDS, MoneyChordPreset, buildProgressionFromDegrees } from './data/moneyChords';
 
@@ -105,10 +98,7 @@ export const App: React.FC = () => {
     beat: 0
   });
 
-  // 5. Save & Share (P4)
-  const [savedList, setSavedList] = useState<StoredProgression[]>([]);
-  const [showSavedDrawer, setShowSavedDrawer] = useState<boolean>(false);
-  const [shareModalUrl, setShareModalUrl] = useState<string | null>(null);
+  // 5. Feedback
   const [, setFeedbackMsg] = useState<string>('');
 
   // 6. Diagnostics & Audio Loading
@@ -123,29 +113,7 @@ export const App: React.FC = () => {
     feedbackTimerRef.current = window.setTimeout(() => setFeedbackMsg(''), 3000);
   };
 
-  // URL State Restoration (P4)
   useEffect(() => {
-    const parsed = parseShareUrl();
-    if (parsed) {
-      setAppMode('studio');
-      if (parsed.key) setKey(parsed.key);
-      if (parsed.isMinor !== undefined) setIsMinorKey(parsed.isMinor);
-      if (parsed.bpm) setBpm(parsed.bpm);
-      if (parsed.rhythmIndex !== undefined) setRhythmIndex(parsed.rhythmIndex);
-      if (parsed.capo !== undefined) setCapo(parsed.capo);
-      if (parsed.items && parsed.items.length > 0) {
-        setProgression(parsed.items);
-        setSelectedItemIndex(0);
-        setPreviewChord({
-          root: parsed.items[0].root,
-          quality: parsed.items[0].quality,
-          voicingType: parsed.items[0].voicingType || 'open'
-        });
-      }
-      showFeedback('공유된 진행이 복원되었습니다!');
-    }
-    setSavedList(loadSavedProgressions());
-
     return () => {
       PlaybackEngine.stop();
     };
@@ -486,144 +454,15 @@ export const App: React.FC = () => {
     showFeedback(`Key: ${newKey} (${semitones > 0 ? `+${semitones}` : semitones}st) 조옮김 완료`);
   };
 
-  // -------------------------------------------------------------
-  // Handlers: Save & Share (P4)
-  // -------------------------------------------------------------
-  const handleSaveCurrentProgression = () => {
-    if (progression.length === 0) {
-      showFeedback('저장할 진행이 없습니다');
-      return;
-    }
-
-    const defaultName = `${key}${isMinorKey ? 'm' : ''} ${progression.map(p => p.chordName).join('-')}`;
-    const name = window.prompt('진행 이름을 입력하세요:', defaultName) || defaultName;
-
-    const newEntry: StoredProgression = {
-      id: `save_${Date.now()}`,
-      name,
-      updatedAt: Date.now(),
-      key,
-      isMinorKey,
-      items: progression.map(it => ({
-        chordName: it.chordName,
-        root: it.root,
-        quality: it.quality,
-        voicingType: it.voicingType
-      })),
-      bpm,
-      rhythmIndex,
-      capo
-    };
-
-    saveProgressionToLocal(newEntry);
-    setSavedList(loadSavedProgressions());
-    showFeedback(`'${name}' 진행이 로컬에 저장되었습니다`);
-  };
-
-  const handleLoadSavedEntry = (entry: StoredProgression) => {
-    if (isPlaying) handleStop();
-
-    setKey(entry.key);
-    setIsMinorKey(!!entry.isMinorKey);
-    setBpm(entry.bpm);
-    setRhythmIndex(entry.rhythmIndex);
-    setCapo(entry.capo || 0);
-
-    const items: ProgressionItem[] = entry.items.map((it, idx) => ({
-      id: `restored_${Date.now()}_${idx}`,
-      chordName: it.chordName,
-      root: it.root,
-      quality: it.quality,
-      voicingType: it.voicingType || 'open'
-    }));
-
-    setProgression(items);
-    setSelectedItemIndex(0);
-    if (items.length > 0) {
-      setPreviewChord({
-        root: items[0].root,
-        quality: items[0].quality,
-        voicingType: items[0].voicingType || 'open'
-      });
-    }
-
-    setShowSavedDrawer(false);
-    showFeedback(`'${entry.name}' 진행을 불러왔습니다`);
-  };
-
-  const handleDeleteSavedEntry = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    const updated = deleteSavedProgression(id);
-    setSavedList(updated);
-  };
-
-  const fallbackCopy = (text: string) => {
-    try {
-      const el = document.createElement('textarea');
-      el.value = text;
-      el.style.position = 'fixed';
-      el.style.top = '0';
-      el.style.left = '-9999px';
-      document.body.appendChild(el);
-      el.focus();
-      el.select();
-      const success = document.execCommand('copy');
-      document.body.removeChild(el);
-      if (success) {
-        showFeedback('공유 링크가 클립보드에 복사되었습니다!');
-      } else {
-        showFeedback('링크 창의 주소를 직접 복사하세요');
-      }
-    } catch {
-      showFeedback('링크 창의 주소를 직접 복사하세요');
-    }
-  };
-
-  const handleShareLink = () => {
-    const url = buildShareUrl({
-      key,
-      isMinor: isMinorKey,
-      items: progression,
-      bpm,
-      rhythmIndex,
-      capo
-    });
-
-    setShareModalUrl(url);
-
-    if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(url).then(() => {
-        showFeedback('공유 링크가 클립보드에 복사되었습니다!');
-      }).catch(() => {
-        fallbackCopy(url);
-      });
-    } else {
-      fallbackCopy(url);
-    }
-  };
-
   return (
     <div className="app">
       <main className="card">
         <header>
           <div>
-            <h1>CHORDS <small style={{ fontSize: '13px', fontWeight: 600, color: '#1a73e8' }}>V2</small></h1>
-            
-          </div>
-          <div className="util-bar">
-            <button className="util-btn" onClick={handleSaveCurrentProgression} title="진행 로컬 저장">
-              💾 저장
-            </button>
-            <button className="util-btn" onClick={() => setShowSavedDrawer(v => !v)} title="저장된 진행 목록">
-              📂 목록 ({savedList.length})
-            </button>
-            <button className="util-btn" onClick={handleShareLink} title="링크로 공유">
-              🔗 공유
-            </button>
+            <h1>CHORDS</h1>
           </div>
         </header>
 
-        {/* Saved Progressions Drawer / Modal */}
         <div className="simple-page-tabs" role="tablist" aria-label="CHORDS 페이지">
           <button
             role="tab"
@@ -698,66 +537,6 @@ export const App: React.FC = () => {
                 ))}
               </div>
             )}
-          </div>
-        )}
-
-        {/* Share Link Modal (P4) */}
-        {shareModalUrl && (
-          <div style={{
-            background: '#fff',
-            border: '2px solid #1a73e8',
-            borderRadius: '12px',
-            padding: '14px',
-            marginBottom: '16px',
-            boxShadow: '0 4px 16px rgba(26, 115, 232, 0.15)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <strong style={{ fontSize: '14px', color: '#1a73e8' }}>🔗 코드 진행 공유 링크</strong>
-              <button
-                onClick={() => setShareModalUrl(null)}
-                style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '16px' }}
-              >
-                ✕
-              </button>
-            </div>
-            <p style={{ fontSize: '11px', color: '#666', margin: '0 0 8px' }}>
-              아래 링크를 복사하면 현재 Key, 진행, BPM, 리듬, 카포 상태가 그대로 열립니다:
-            </p>
-            <div style={{ display: 'flex', gap: '6px' }}>
-              <input
-                type="text"
-                readOnly
-                value={shareModalUrl}
-                onClick={e => (e.target as HTMLInputElement).select()}
-                style={{
-                  flex: 1,
-                  padding: '8px 10px',
-                  borderRadius: '6px',
-                  border: '1px solid #ccc',
-                  fontSize: '12px',
-                  background: '#f9f9fb',
-                  fontFamily: 'monospace'
-                }}
-              />
-              <button
-                onClick={() => {
-                  fallbackCopy(shareModalUrl);
-                  showFeedback('링크가 복사되었습니다!');
-                }}
-                style={{
-                  background: '#1a73e8',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  padding: '8px 14px',
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  cursor: 'pointer'
-                }}
-              >
-                복사
-              </button>
-            </div>
           </div>
         )}
 
