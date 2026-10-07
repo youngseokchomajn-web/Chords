@@ -26,15 +26,13 @@ interface SimpleModeViewProps {
 }
 
 const DEFAULT_SONG_TEXT = `[Intro]
-1 4 1
+1 / 4 1
 
-[Pre-Chorus]
-1 4 1
-4 1 5 1
+[Verse]
+1 / 4 1 / 4 1 5 1
 
 [Chorus]
-1 4 1 5
-1 4 1 5`;
+1 4 1 5 / 1 4 1 5`;
 
 const parseSongSections = (text: string) => {
   const lines = text.split(/\r?\n/);
