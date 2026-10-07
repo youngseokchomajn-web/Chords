@@ -86,6 +86,7 @@ export const App: React.FC = () => {
   const [capo, setCapo] = useState<number>(0);
   const [isLooping, setIsLooping] = useState<boolean>(true);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [isPaused, setIsPaused] = useState<boolean>(false);
   const [playbackPos, setPlaybackPos] = useState<{
     currentIndex: number;
     currentChord: string | null;
@@ -114,7 +115,20 @@ export const App: React.FC = () => {
   };
 
   useEffect(() => {
+    const stopWhenHidden = () => {
+      if (document.visibilityState === 'hidden') {
+        PlaybackEngine.stop();
+        setIsPlaying(false);
+        setIsPaused(false);
+        setActivePresetId(null);
+        setPlaybackPos({ currentIndex: -1, currentChord: null, nextChord: null, beat: 0 });
+      }
+    };
+    document.addEventListener('visibilitychange', stopWhenHidden);
+    window.addEventListener('pagehide', stopWhenHidden);
     return () => {
+      document.removeEventListener('visibilitychange', stopWhenHidden);
+      window.removeEventListener('pagehide', stopWhenHidden);
       PlaybackEngine.stop();
     };
   }, []);
@@ -304,6 +318,7 @@ export const App: React.FC = () => {
     }
 
     setIsPlaying(true);
+    setIsPaused(false);
     PlaybackEngine.playProgression(
       itemsToPlay,
       RHYTHMS[rhythmIndex],
@@ -324,6 +339,7 @@ export const App: React.FC = () => {
         },
         onFinish: () => {
           setIsPlaying(false);
+          setIsPaused(false);
           setActivePresetId(null);
           setPlaybackPos({
             currentIndex: -1,
@@ -334,6 +350,20 @@ export const App: React.FC = () => {
         }
       }
     );
+  };
+
+  const handlePause = () => {
+    if (PlaybackEngine.pause()) {
+      setIsPlaying(false);
+      setIsPaused(true);
+    }
+  };
+
+  const handleResume = () => {
+    if (PlaybackEngine.resume()) {
+      setIsPlaying(true);
+      setIsPaused(false);
+    }
   };
 
   const handlePlay = () => {
@@ -347,6 +377,7 @@ export const App: React.FC = () => {
   const handleStop = () => {
     PlaybackEngine.stop();
     setIsPlaying(false);
+    setIsPaused(false);
     setActivePresetId(null);
     setPlaybackPos({
       currentIndex: -1,
