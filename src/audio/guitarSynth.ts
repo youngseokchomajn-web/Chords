@@ -179,6 +179,7 @@ export function findBestSampleForString(
 interface ActiveVoice {
   gainNode: GainNode;
   sourceNode?: AudioBufferSourceNode;
+  startTime: number;
 }
 
 export class GuitarSoundEngine {
@@ -280,7 +281,7 @@ export class GuitarSoundEngine {
       };
 
       source.start(start);
-      this.activeVoices.push({ gainNode: gain, sourceNode: source });
+      this.activeVoices.push({ gainNode: gain, sourceNode: source, startTime: start });
     } catch (err) {
       console.warn('Guitar sample playback failed:', err);
     }
@@ -311,6 +312,57 @@ export class GuitarSoundEngine {
       Math.abs(b[0] - midi) < Math.abs(a[0] - midi) ? b : a,
     );
     void loadSample(target[0], target[1]);
+  }
+
+  private static strumAtInternal(
+    frets: [number, number, number, number, number, number],
+    when: number,
+    options: StrumOptions = {},
+  ): void {
+    const speed = options.speedSec ?? 0.007;
+    const direction = options.direction ?? 'down';
+    const velocity = options.velocity ?? 0.9;
+    const indices = direction === 'down' ? [0, 1, 2, 3, 4, 5] : [5, 4, 3, 2, 1, 0];
+
+    let soundingIndex = 0;
+    for (const idx of indices) {
+      const fret = frets[idx];
+      if (fret < 0) continue;
+      const stringIndex = 6 - idx;
+      const midi = STANDARD_TUNING_MIDI[stringIndex] + fret;
+      const best = findBestSampleForString(stringIndex, fret, midi);
+      if (!best) continue;
+      const start = when + soundingIndex * speed;
+      this.triggerVoice(best.buffer, best.sampleMidi, midi, stringIndex, start, velocity * (0.96 + (soundingIndex % 2) * 0.04));
+      soundingIndex++;
+    }
+  }
+
+  /** Schedule a strum on the Web Audio clock, avoiding setTimeout jitter. */
+  public static strumAt(
+    frets: [number, number, number, number, number, number],
+    when: number,
+    options: StrumOptions = {},
+  ): void {
+    audioContextManager.unlockSync();
+    this.strumAtInternal(frets, when, options);
+  }
+
+  /** Release only voices that started before the given audio-clock time. */
+  public static releaseAllAt(when: number, fadeTime = 0.045): void {
+    const ctx = audioContextManager.getContext();
+    const safeFade = Math.max(0.04, Math.min(0.25, fadeTime));
+    this.activeVoices.forEach(voice => {
+      if (voice.startTime >= when) return;
+      try {
+        voice.gainNode.gain.cancelScheduledValues(when);
+        voice.gainNode.gain.setValueAtTime(0.0001, when);
+        voice.gainNode.gain.linearRampToValueAtTime(0.0001, when + safeFade);
+        if (voice.sourceNode) voice.sourceNode.stop(when + safeFade + 0.005);
+      } catch {
+        // Voice already stopped.
+      }
+    });
   }
 
   /**
