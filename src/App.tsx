@@ -802,28 +802,6 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {/* Mode Switcher: Simple vs Studio */}
-        <div className="mode-switch-container">
-          <button
-            className={`mode-switch-btn ${appMode === 'simple' ? 'active' : ''}`}
-            onClick={() => {
-              if (isPlaying) handleStop();
-              setAppMode('simple');
-            }}
-          >
-            <span>심플 모드</span>
-          </button>
-          <button
-            className={`mode-switch-btn ${appMode === 'studio' ? 'active' : ''}`}
-            onClick={() => {
-              if (isPlaying) handleStop();
-              setAppMode('studio');
-            }}
-          >
-            <span>스튜디오 모드</span>
-          </button>
-        </div>
-
         {appMode === 'simple' ? (
           <SimpleModeView
             currentKey={key}
@@ -839,7 +817,6 @@ export const App: React.FC = () => {
             onPlayPreset={handlePlaySimplePreset}
             onPlayCustomDegrees={handlePlaySimpleCustom}
             onStop={handleStop}
-            onSwitchToStudioWithItems={handleSwitchToStudioWithItems}
             activePresetId={activePresetId}
           />
         ) : (
